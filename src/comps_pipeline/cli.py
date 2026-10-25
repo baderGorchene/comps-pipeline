@@ -121,3 +121,55 @@ def inspect_csv(
     if missing:
         console.print(f"[bold red]Missing required fields:[/] {missing}")
         raise typer.Exit(1)
+
+
+SAMPLE_CSV = Path("data/samples/mls_sample.csv")
+SAMPLE_SUBJECT = Path("data/samples/subject.yaml")
+
+
+def _flag_table(title: str, flags: list) -> Table:
+    table = Table(title=title)
+    for col in ("reason", "mls", "evidence / message"):
+        table.add_column(col)
+    for f in flags:
+        table.add_row(f.reason.value, f.mls_number or "-", (f.evidence or f.message)[:90])
+    return table
+
+
+def run_demo(config: Path = DEFAULT_CONFIG) -> int:
+    """Synthetic data with mock hallucinate_id, then fake_quote. Returns an exit code."""
+    settings = load_settings(config)
+    if not SAMPLE_CSV.exists():
+        console.print("[red]No sample data.[/] Run: uv run python scripts/generate_synthetic.py")
+        return 1
+    baseline = pipeline.run(SAMPLE_CSV, SAMPLE_SUBJECT, apply_llm_override(settings, "off"))
+    baseline_json = (baseline.out_dir / "shortlist.json").read_bytes()
+    console.print(f"Baseline run with LLM off: {len(baseline.shortlist)} comps shortlisted")
+    ok = True
+    for mode in ("hallucinate_id", "fake_quote"):
+        llm = settings.llm.model_copy(
+            update={"enabled": True, "provider": "mock", "mock_mode": mode, "cache": False}
+        )
+        result = pipeline.run(SAMPLE_CSV, SAMPLE_SUBJECT, settings.model_copy(update={"llm": llm}))
+        accepted = [f for f in result.flags if f.origin == "LLM"]
+        rejected = [f for f in result.flags if f.origin == "GATE"]
+        console.rule(f"mock mode: {mode}")
+        console.print(_flag_table(f"Accepted by the gate ({len(accepted)})", accepted))
+        console.print(_flag_table(f"Rejected by the gate ({len(rejected)})", rejected))
+        same = (result.out_dir / "shortlist.json").read_bytes() == baseline_json
+        mark = "[green]identical[/]" if same else "[bold red]DIFFERENT[/]"
+        console.print(f"shortlist.json vs LLM-off run: {mark}")
+        ok = ok and same and bool(rejected)
+    console.print("[green]Demo passed[/]" if ok else "[bold red]Demo failed[/]")
+    return 0 if ok else 1
+
+
+@app.command()
+def demo(config: ConfigOpt = DEFAULT_CONFIG) -> None:
+    """Show the validation gate rejecting a hallucinated ID and a fake quote."""
+    setup_logging("WARNING")
+    try:
+        code = run_demo(config)
+    except (ConfigError, InputError) as e:
+        raise _fail(e) from e
+    raise typer.Exit(code)

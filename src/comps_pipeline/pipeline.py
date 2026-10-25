@@ -18,6 +18,8 @@ from comps_pipeline.filters.geo import compute_distances
 from comps_pipeline.filters.hard_filters import apply_hard_filters
 from comps_pipeline.ingest.cleaner import clean
 from comps_pipeline.ingest.mapper import InputError, map_rows, read_csv, suggest_mapping
+from comps_pipeline.llm import LLMClient, build_client
+from comps_pipeline.llm.review import review
 from comps_pipeline.matching.subdivision import match_all
 from comps_pipeline.models import (
     AuditEntry,
@@ -33,6 +35,7 @@ from comps_pipeline.models import (
 )
 from comps_pipeline.outputs.writers import write_manifest, write_outputs
 from comps_pipeline.ranking.ranker import rank
+from comps_pipeline.validation.gate import validate_review
 
 log = logging.getLogger(__name__)
 
@@ -104,15 +107,13 @@ def _summary(stage: str, **detail: object) -> AuditEntry:
     )
 
 
-def _review_stage(shortlist: list[Comp], settings: Settings) -> tuple[StageOutput, str]:
-    out = StageOutput()
-    msg = "LLM review disabled (llm.enabled is false); shortlist not reviewed"
-    out.flags.append(settings.flag(FlagReason.LLM_UNAVAILABLE, None, msg))
-    out.audit.append(_summary("llm_review", message=msg))
-    return out, "off"
-
-
-def run(input_csv: Path, subject_file: Path, settings: Settings) -> RunResult:
+def run(
+    input_csv: Path,
+    subject_file: Path,
+    settings: Settings,
+    llm_client: LLMClient | None = None,
+) -> RunResult:
+    """llm_client overrides the client built from settings (tests inject mocks this way)."""
     input_csv, subject_file = Path(input_csv), Path(subject_file)
     started_at = dt.datetime.now().isoformat(timespec="seconds")
     timer = _Timer()
@@ -128,6 +129,10 @@ def run(input_csv: Path, subject_file: Path, settings: Settings) -> RunResult:
 
     with timer.stage("load_inputs"):
         subject = load_subject(subject_file)
+        if llm_client is not None and settings.llm.enabled:
+            client, llm_mode, llm_unavailable = llm_client, llm_client.model, None
+        else:
+            client, llm_mode, llm_unavailable = build_client(settings)
     with timer.stage("ingest"):
         df = read_csv(input_csv)
         rows = map_rows(df, settings.column_mapping)
@@ -149,9 +154,19 @@ def run(input_csv: Path, subject_file: Path, settings: Settings) -> RunResult:
         flags.extend(ranked.flags)
         audit.extend(ranked.audit)
         excluded.extend(ranked.excluded)
+    batches = []
     with timer.stage("llm_review"):
-        review, llm_mode = _review_stage(ranked.shortlist, settings)
-        absorb(review)
+        if client is None:
+            flags.append(settings.flag(FlagReason.LLM_UNAVAILABLE, None, str(llm_unavailable)))
+            audit.append(_summary("llm_review", message=llm_unavailable))
+        else:
+            batches = review(ranked.shortlist, client, settings)
+            audit.append(_summary("llm_review", batches=len(batches), model=llm_mode))
+    with timer.stage("validation_gate"):
+        for b in batches:
+            gate = validate_review(b.result, b.batch, settings, b.index, b.attempts)
+            flags.extend(gate.accepted_flags + gate.gate_flags)
+            audit.extend(gate.audit)
 
     for i, f in enumerate(flags, start=1):
         f.id = f"F{i:04d}"
