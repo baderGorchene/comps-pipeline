@@ -1,0 +1,9 @@
+# Manual subdivision overrides, applied before fuzzy matching.
+# Format: canonical name -> list of names that mean the same subdivision.
+# A comp whose name matches a variant of the subject's canonical name is a tier 1 (alias) match.
+# Phase / section / unit numbers still have to agree.
+#
+# Example:
+# aliases:
+#   "BRUSHY CREEK PHASE 2": ["BC PHASE 2", "BRUSHYCREEK PHASE 2"]
+aliases: {}

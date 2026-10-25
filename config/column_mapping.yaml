@@ -1,0 +1,14 @@
+# standard_field: [candidate CSV header names]
+# Matching is case-insensitive and ignores surrounding spaces. The first candidate found wins.
+# Columns not listed here are kept in each comp's "extras".
+mls_number: ["MLS #", "MLS Number", "MLS#", "ListingId", "MLS No", "MLSNumber"]
+close_price: ["Close Price", "Sold Price", "ClosePrice", "Sale Price", "Sales Price"]
+close_date: ["Close Date", "Sold Date", "CloseDate", "Closing Date", "Sale Date"]
+living_area: ["SqFt Living", "LivingArea", "GLA", "Sq Ft", "Total SqFt", "Living Area"]
+year_built: ["Year Built", "YearBuilt", "Yr Built"]
+lot_size_sqft: ["Lot SqFt", "Lot Size SqFt", "LotSizeSquareFeet", "Lot Sq Ft"]
+subdivision_raw: ["Subdivision", "SubdivisionName", "Subdivision Name", "Legal Subdivision"]
+latitude: ["Latitude", "Lat"]
+longitude: ["Longitude", "Lon", "Long", "Lng"]
+foundation_type: ["Foundation", "Foundation Details", "FoundationDetails", "Foundation Type"]
+public_remarks: ["Public Remarks", "PublicRemarks", "Remarks", "Property Description"]

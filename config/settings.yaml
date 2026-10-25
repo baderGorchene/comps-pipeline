@@ -1,0 +1,52 @@
+# Comps pipeline settings. Every business threshold lives here, never in code.
+# Unknown keys are rejected. See config/README.md for plain-language explanations.
+
+run:
+  output_dir: data/output        # one sub-folder per run
+  shortlist_size: 30             # how many ranked comps to keep
+  min_shortlist_size: 25         # fewer than this -> BLOCKING flag
+
+ingest:
+  date_formats: ["%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y"]   # tried in order
+
+filters:
+  gla_bracket_pct: 30            # whole number: comps within +/- 30% of subject living area
+  gla_bracket_inclusive: true    # true: exactly 30% off is kept
+  missing_gla: exclude           # exclude | keep_and_flag
+  max_distance_miles: 1.0
+  missing_distance: exclude      # exclude | keep_and_flag
+  require_subdivision_match: true
+  subdivision_min_score: 90      # 0-100 fuzzy score needed for an uncertain (tier 2) match
+  sale_date_max_months: 12       # older sales are excluded
+  required_features: {}          # example: { foundation_type: "Crawl Space" }
+
+matching:
+  # Words dropped before comparing subdivision names. Add ESTATES here only if wanted.
+  noise_words: [SUBDIVISION, SUBD, SUB, ADDN, ADDITION]
+
+ranking:
+  hierarchy: [subdivision, distance, gla, age, lot]   # must be a permutation of these five
+  tolerance_bands:               # values inside the same band count as a tie
+    distance_miles: 0.25
+    gla_pct: 5
+    age_years: 5
+    lot_pct: 10
+
+llm:
+  enabled: true
+  provider: gemini               # gemini | mock
+  mock_mode: clean               # clean | hallucinate_id | fake_quote | malformed | error
+  model_env: GEMINI_MODEL        # env var holding the Gemini model name
+  api_key_env: GEMINI_API_KEY    # env var holding the API key (never logged)
+  temperature: 0
+  max_retries: 1
+  batch_size: 10
+  fields_sent: [mls_number, subdivision_raw, public_remarks, close_price, close_date]
+  cache: true
+  cache_dir: data/cache
+
+validation:
+  require_evidence_quote: true
+
+# Optional per-reason severity overrides (INFO | REVIEW | BLOCKING). Defaults in config/README.md.
+severity: {}
