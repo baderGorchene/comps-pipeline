@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from comps_pipeline.models.comp import STANDARD_FIELDS
-from comps_pipeline.models.flag import FlagReason, Severity
+from comps_pipeline.models.flag import Flag, FlagOrigin, FlagReason, Severity
 
 RANKING_KEYS = ("subdivision", "distance", "gla", "age", "lot")
 
@@ -153,3 +153,23 @@ class Settings(Strict):
 
     def sev(self, reason: FlagReason) -> Severity:
         return self.severity[reason]
+
+    def flag(
+        self,
+        reason: FlagReason,
+        mls_number: str | None,
+        message: str,
+        field: str | None = None,
+        origin: FlagOrigin = FlagOrigin.RULE,
+        evidence: str | None = None,
+    ) -> Flag:
+        """Build a Flag with the configured severity for its reason."""
+        return Flag(
+            mls_number=mls_number,
+            field=field,
+            reason=reason,
+            severity=self.sev(reason),
+            origin=origin,
+            message=message,
+            evidence=evidence,
+        )
