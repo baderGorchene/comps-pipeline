@@ -1,0 +1,16 @@
+# Example subject property. Copy to data/input/subject.yaml and edit for each assignment.
+# Required: address, latitude, longitude, living_area, subdivision, effective_date.
+# Optional: year_built, lot_size_sqft, foundation_type, extras (free-form notes).
+# effective_date is the appraisal effective date: sales after it are invalid, sales more than
+# filters.sale_date_max_months before it are excluded.
+# This example matches the synthetic sample in data/samples/.
+address: "1708 Hidden Glen Dr, Round Rock, TX 78681"
+latitude: 30.508300
+longitude: -97.678900
+living_area: 2000
+year_built: 2005
+lot_size_sqft: 7800
+subdivision: "Brushy Creek Phase 2"
+foundation_type: "Slab"
+effective_date: 2026-10-01
+extras: {}

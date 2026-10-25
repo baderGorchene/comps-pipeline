@@ -70,11 +70,21 @@ def test_unknown_mapping_field_rejected(tmp_path):
         load_settings(path)
 
 
-def test_severity_override_is_partial(tmp_path):
-    path = _write_config(tmp_path, lambda d: d.update(severity={"NO_COORDINATES": "BLOCKING"}))
-    s = load_settings(path)
-    assert s.sev(FlagReason.NO_COORDINATES) is Severity.BLOCKING
-    assert s.sev(FlagReason.LLM_UNAVAILABLE) is Severity.INFO
+def test_severity_override(tmp_path):
+    path = _write_config(tmp_path, lambda d: d["severity"].update(NO_COORDINATES="BLOCKING"))
+    assert load_settings(path).sev(FlagReason.NO_COORDINATES) is Severity.BLOCKING
+
+
+def test_severity_must_cover_every_reason(tmp_path):
+    path = _write_config(tmp_path, lambda d: d["severity"].pop("LLM_UNAVAILABLE"))
+    with pytest.raises(ConfigError, match="LLM_UNAVAILABLE"):
+        load_settings(path)
+
+
+def test_missing_threshold_rejected(tmp_path):
+    path = _write_config(tmp_path, lambda d: d["filters"].pop("max_distance_miles"))
+    with pytest.raises(ConfigError, match="max_distance_miles"):
+        load_settings(path)
 
 
 def test_llm_override():
