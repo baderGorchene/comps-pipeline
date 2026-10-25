@@ -1,0 +1,16 @@
+MLS #,Close Price,Close Date,SqFt Living,Year Built,Lot SqFt,Subdivision,Latitude,Longitude,Public Remarks
+C001,"$400,000",09/01/2026,2000,2005,7800,Brushy Creek Phase 2,30.509024,-97.678900,"Perfect twin, very close."
+E002,"$410,000",08/15/2026,2050,2006,7800,BRUSHY CREEK PH 2,30.510037,-97.678900,Same bands as C001 but farther.
+O003,"$398,000",07/20/2026,1990,2005,7800,Brushy Creek Phase II,30.511195,-97.678900,"Estate sale, sold as-is."
+D004,"$400,000",06/10/2026,2000,2015,7800,Brushy Creek Phase 2,30.509747,-97.678900,10 years newer than subject.
+L005,"$400,000",05/05/2026,2000,,7800,Brushy Creek Phase 2,30.509747,-97.678900,Year built missing.
+K006,"$280,000",04/12/2026,1400,2005,7800,Brushy Creek Phase 2,30.511195,-97.678900,GLA exactly on the -30% boundary.
+B007,"$402,000",03/03/2026,2010,2005,7800,Brushy Creek Phase 2,30.512931,-97.678900,"0.32 mi, GLA almost equal."
+A008,"$460,000",02/02/2026,2300,2005,7800,Brushy Creek Phase 2,30.512787,-97.678900,"0.31 mi, GLA 15% bigger."
+F009,"$400,000",09/10/2026,2000,2005,7800,Brushy Crek Phase 2,30.509024,-97.678900,Typo in subdivision.
+G010,"$400,000",09/12/2026,2000,2005,7800,Brushy Creek Phase 3,30.509168,-97.678900,Different phase number.
+H011,"$400,000",09/01/2026,2000,2005,7800,Forest Creek,30.509024,-97.678900,Other subdivision.
+I012,"$400,000",09/01/2026,2000,2005,7800,Brushy Creek Phase 2,30.530010,-97.678900,Too far.
+J013,"$520,200",09/01/2026,2601,2005,7800,Brushy Creek Phase 2,30.509024,-97.678900,GLA 1 sqft past +30%.
+C001,"$400,000",09/01/2026,2000,2005,7800,Brushy Creek Phase 2,30.509024,-97.678900,Duplicate MLS number.
+N014,"$400,000",06/01/2025,2000,2005,7800,Brushy Creek Phase 2,30.509024,-97.678900,Sold more than 12 months ago.
