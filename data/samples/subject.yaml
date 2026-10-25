@@ -1,0 +1,11 @@
+# Subject property for the synthetic sample (scripts/generate_synthetic.py).
+address: "1708 Hidden Glen Dr, Round Rock, TX 78681"
+latitude: 30.508300
+longitude: -97.678900
+living_area: 2000
+year_built: 2005
+lot_size_sqft: 7800
+subdivision: "Brushy Creek Phase 2"
+foundation_type: "Slab"
+effective_date: 2026-10-01
+extras: {}
