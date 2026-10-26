@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 import yaml
+from pydantic import ValidationError
 
 from comps_pipeline import pipeline
 from comps_pipeline.config.loader import (
@@ -22,6 +23,7 @@ from comps_pipeline.config.loader import (
 )
 from comps_pipeline.config.schema import RANKING_KEYS
 from comps_pipeline.ingest.mapper import InputError
+from comps_pipeline.models import Subject
 
 SAMPLE_CSV = Path("data/samples/mls_sample.csv")
 SAMPLE_SUBJECT = Path("data/samples/subject.yaml")
@@ -107,18 +109,66 @@ def save_as_default(cfg: dict) -> None:
     _defaults.clear()
 
 
+def subject_form(col) -> bytes | None:
+    """Subject typed in by hand (prefilled from the sample). Returns YAML bytes if valid."""
+    d = yaml.safe_load(SAMPLE_SUBJECT.read_text(encoding="utf-8"))
+    with col.form("subject_form"):
+        a, b = st.columns(2)
+        data = {
+            "address": a.text_input("Address", d["address"]),
+            "subdivision": b.text_input("Subdivision", d["subdivision"]),
+            "living_area": a.number_input("Living area (sq ft)", 1, 100_000, d["living_area"]),
+            "effective_date": b.date_input("Effective date", d["effective_date"]),
+            "year_built": a.number_input("Year built", 1800, 2100, d.get("year_built")),
+            "lot_size_sqft": b.number_input("Lot (sq ft)", 1, 10_000_000, d.get("lot_size_sqft")),
+            "lot_size_acres": a.number_input(
+                "Lot (acres), if no sq ft", 0.001, 10_000.0, None, format="%.4f"
+            ),
+            "bedrooms": b.number_input("Bedrooms", 0, 50, d.get("bedrooms")),
+            "baths_full": a.number_input("Full baths", 0, 50, d.get("baths_full")),
+            "baths_half": b.number_input("Half baths", 0, 50, d.get("baths_half")),
+            "latitude": a.number_input(
+                "Latitude (blank if the CSV has Distance)",
+                -90.0,
+                90.0,
+                d.get("latitude"),
+                format="%.6f",
+            ),
+            "longitude": b.number_input(
+                "Longitude", -180.0, 180.0, d.get("longitude"), format="%.6f"
+            ),
+            "foundation_type": a.text_input("Foundation", d.get("foundation_type", "")) or None,
+        }
+        st.form_submit_button("Apply subject")
+    data = {k: v for k, v in data.items() if v is not None}
+    try:
+        Subject.model_validate(data)
+    except ValidationError as e:
+        col.error(f"Subject is not valid:\n{e}")
+        return None
+    text = yaml.safe_dump(data, sort_keys=False).encode("utf-8")
+    col.download_button("Download as subject.yaml", text, file_name="subject.yaml")
+    return text
+
+
 def inputs() -> tuple[Path, Path] | None:
     c1, c2 = st.columns(2)
     csv_file = c1.file_uploader("MLS export (CSV)", type=["csv"])
-    subject_file = c2.file_uploader("Subject (YAML)", type=["yaml", "yml"])
-    if csv_file and subject_file:
-        tmp = Path(tempfile.mkdtemp(prefix="comps_"))
-        (tmp / "input.csv").write_bytes(csv_file.getvalue())
-        (tmp / "subject.yaml").write_bytes(subject_file.getvalue())
-        return tmp / "input.csv", tmp / "subject.yaml"
-    if st.checkbox("Use the synthetic sample", value=not (csv_file or subject_file)):
-        return SAMPLE_CSV, SAMPLE_SUBJECT
-    return None
+    how = c2.radio("Subject", ["Fill in form", "Upload YAML"], horizontal=True)
+    if how == "Upload YAML":
+        upload = c2.file_uploader("Subject (YAML)", type=["yaml", "yml"])
+        subject = upload.getvalue() if upload else None
+    else:
+        subject = subject_form(c2)
+    use_sample = csv_file is None and st.checkbox("Use the synthetic sample CSV", value=True)
+    if subject is None or (csv_file is None and not use_sample):
+        return None
+    tmp = Path(tempfile.mkdtemp(prefix="comps_"))
+    (tmp / "subject.yaml").write_bytes(subject)
+    if csv_file is None:
+        return SAMPLE_CSV, tmp / "subject.yaml"
+    (tmp / "input.csv").write_bytes(csv_file.getvalue())
+    return tmp / "input.csv", tmp / "subject.yaml"
 
 
 def show(result: pipeline.RunResult) -> None:
