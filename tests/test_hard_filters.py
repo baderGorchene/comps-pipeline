@@ -1,3 +1,6 @@
+import datetime as dt
+from fractions import Fraction
+
 import pytest
 
 from comps_pipeline.filters.hard_filters import (
@@ -5,7 +8,10 @@ from comps_pipeline.filters.hard_filters import (
     distance_filter,
     gla_filter,
     gla_in_bracket,
+    lot_filter,
+    lot_in_bracket,
     required_features_filter,
+    sale_date_filter,
 )
 from comps_pipeline.models import Cell
 from tests.conftest import make_comp, with_filters
@@ -14,16 +20,16 @@ from tests.conftest import make_comp, with_filters
 @pytest.mark.parametrize(
     ("gla", "inclusive", "kept"),
     [
-        (1400, True, True),  # exact lower boundary
-        (1399, True, False),
-        (1401, True, True),
-        (2600, True, True),  # exact upper boundary
-        (2601, True, False),
-        (2599, True, True),
-        (1400, False, False),
-        (1401, False, True),
-        (2600, False, False),
-        (2599, False, True),
+        (1500, True, True),  # exact lower boundary (25%)
+        (1499, True, False),
+        (1501, True, True),
+        (2500, True, True),  # exact upper boundary
+        (2501, True, False),
+        (2499, True, True),
+        (1500, False, False),
+        (1501, False, True),
+        (2500, False, False),
+        (2499, False, True),
     ],
 )
 def test_gla_boundaries(subject, settings, gla, inclusive, kept):
@@ -55,8 +61,8 @@ def _at(miles):
 
 
 def test_distance_filter(subject, settings):
-    assert distance_filter([_at(1.0)], subject, settings).kept
-    assert not distance_filter([_at(1.0001)], subject, settings).kept
+    assert distance_filter([_at(3.0)], subject, settings).kept
+    assert not distance_filter([_at(3.0001)], subject, settings).kept
     assert not distance_filter([_at(None)], subject, settings).kept
     s = with_filters(settings, missing_distance="keep_and_flag")
     assert distance_filter([_at(None)], subject, s).kept
@@ -75,12 +81,49 @@ def test_required_features(subject, settings):
 def test_audit_records_every_failing_rule(subject, settings):
     comp = make_comp("9", living_area=5000).model_copy(
         update={
-            "distance_miles": Cell(value=3.0, source="COMPUTED"),
+            "distance_miles": Cell(value=6.0, source="COMPUTED"),
             "subdivision_tier": Cell(value=3, source="COMPUTED"),
         }
     )
-    out = apply_hard_filters([comp], subject, settings)
+    out = apply_hard_filters(
+        [comp], subject, with_filters(settings, require_subdivision_match=True)
+    )
     assert not out.comps
     (ex,) = out.excluded
     rules = {r.split(":")[0] for r in ex.reasons}
     assert rules == {"gla_bracket", "max_distance", "subdivision_match"}
+
+
+def test_subdivision_not_required_by_default(subject, settings):
+    comp = make_comp("9", living_area=2000).model_copy(
+        update={
+            "distance_miles": Cell(value=1.0, source="COMPUTED"),
+            "subdivision_tier": Cell(value=3, source="COMPUTED"),
+        }
+    )
+    assert apply_hard_filters([comp], subject, settings).comps
+
+
+def test_lot_bracket_in_acres(subject, settings):
+    # subject lot 8000 sqft; 25% band = 6000..10000 sqft, compared in exact acres
+    assert lot_in_bracket(Fraction(6000, 43560), Fraction(8000, 43560), 25, inclusive=True)
+    assert not lot_in_bracket(Fraction(5999, 43560), Fraction(8000, 43560), 25, inclusive=True)
+    acres_ok = make_comp("1", lot_size_acres=0.2)  # 8712 sqft
+    too_big = make_comp("2", lot_size_sqft=10001)
+    unknown = make_comp("3")
+    res = lot_filter([acres_ok, too_big, unknown], subject, settings)
+    assert [c.mls_number for c in res.kept] == ["1", "3"]  # missing_lot: keep_and_flag
+    res = lot_filter([unknown], subject, with_filters(settings, missing_lot="exclude"))
+    assert not res.kept
+
+
+def test_sale_date_window_sold_only(subject, settings):
+    def sold(mls, day):
+        return make_comp(mls, close_date=day).model_copy(update={"pool": "sold"})
+
+    listing = make_comp("L").model_copy(update={"pool": "listing"})
+    comps = [sold("old", dt.date(2025, 9, 30)), sold("edge", dt.date(2025, 10, 1)), listing]
+    res = sale_date_filter(comps, subject, settings)
+    assert [c.mls_number for c in res.kept] == ["edge", "L"]  # exactly 12 months is kept
+    res = sale_date_filter(comps, subject, with_filters(settings, sale_date_max_months=24))
+    assert len(res.kept) == 3

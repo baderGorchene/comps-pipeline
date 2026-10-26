@@ -1,6 +1,8 @@
 # Example subject property. Copy to data/input/subject.yaml and edit for each assignment.
-# Required: address, latitude, longitude, living_area, subdivision, effective_date.
-# Optional: year_built, lot_size_sqft, foundation_type, extras (free-form notes).
+# Required: address, living_area, subdivision, effective_date.
+# Optional: latitude/longitude (needed unless the export has a Distance column), year_built,
+# lot_size_sqft or lot_size_acres, bedrooms, baths_full, baths_half, foundation_type, extras.
+# Missing year/lot/rooms: comps tie on that ranking key and it cannot be bracketed (flagged).
 # effective_date is the appraisal effective date: sales after it are invalid, sales more than
 # filters.sale_date_max_months before it are excluded.
 # This example matches the synthetic sample in data/samples/.
@@ -12,5 +14,8 @@ year_built: 2005
 lot_size_sqft: 7800
 subdivision: "Brushy Creek Phase 2"
 foundation_type: "Slab"
+bedrooms: 3
+baths_full: 2
+baths_half: 1
 effective_date: 2026-10-01
 extras: {}

@@ -17,14 +17,17 @@
 load inputs (subject YAML, LLM client)          pipeline.py, llm/__init__.py
   -> ingest       CSV as text, header mapping   ingest/mapper.py
   -> clean        typed Cells + flags, dedupe,  ingest/cleaner.py
-                  sale-date window
-  -> geo          haversine distance            filters/geo.py
+                  status -> sold | listing pool
+  -> geo          haversine, else MLS Distance  filters/geo.py
   -> subdivision  normalize, tier, score        matching/normalize.py, subdivision.py
-  -> hard filters GLA, distance, subdivision,   filters/hard_filters.py
-                  required features (all rules
-                  evaluated, all failures kept)
-  -> rank         buckets by hierarchy, tie-    ranking/ranker.py
-                  breakers, shortlist, minimum
+  -> hard filters sale date (sold), GLA, lot,   filters/hard_filters.py
+     + escalation distance, subdivision,        filters/escalation.py
+                  features; relaxed step by step
+                  while sold < min_shortlist_size
+  -> rank         per pool: buckets by          ranking/ranker.py
+                  hierarchy, tie-breakers
+  -> final pick   5 sold + 1 listing, swaps     selection/final.py
+                  until the subject is bracketed
   -> llm review   batches of fields_sent only   llm/review.py (+ gemini_client / mock_client, cache)
   -> gate         schema, ID, quote, reason     validation/gate.py
   -> write        CSV/JSON/JSONL outputs        outputs/writers.py

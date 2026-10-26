@@ -34,23 +34,37 @@ def _fail(e: Exception) -> typer.Exit:
     return typer.Exit(1)
 
 
+def _num(value: object) -> str:
+    return "?" if value is None else str(value)
+
+
 def print_summary(result: pipeline.RunResult) -> None:
-    table = Table(title=f"Shortlist (top 10 of {len(result.shortlist)})")
-    for col in ("rank", "mls", "subdivision", "tier", "miles", "GLA", "flags"):
+    pools = Counter(c.pool for c in result.shortlist)
+    table = Table(
+        title=f"Final selection ({pools['sold']} sold + {pools['listing']} listings shortlisted)"
+    )
+    for col in ("pool", "rank", "mls", "subdivision", "miles", "GLA", "acres", "bd/fb/hb", "flags"):
         table.add_column(col)
     flagged = Counter(f.mls_number for f in result.flags if f.origin != "GATE")
-    for c in result.shortlist[:10]:
-        d = c.distance_miles.value
+    for c in result.final.picks:
+        d, acres = c.distance_miles.value, c.lot_acres()
+        rooms = (c.bedrooms.value, c.baths_full.value, c.baths_half.value)
         table.add_row(
+            c.pool or "",
             str(c.rank),
             c.mls_number,
             str(c.subdivision_raw.value or ""),
-            str(c.subdivision_tier.value),
             "" if d is None else f"{d:.2f}",
             str(c.living_area.value or ""),
+            "" if acres is None else f"{float(acres):.3f}",
+            "/".join(_num(v) for v in rooms),
             str(flagged.get(c.mls_number, "")),
         )
     console.print(table)
+    console.print(
+        f"Escalation steps applied: {result.manifest.escalation_level}  |  "
+        f"not bracketed: {result.final.gaps or 'none'}  |  swaps: {len(result.final.swaps)}"
+    )
     severities = Counter(f.severity.value for f in result.flags)
     console.print(
         f"Flags: {dict(sorted(severities.items()))}  |  excluded rows: {len(result.excluded)}"

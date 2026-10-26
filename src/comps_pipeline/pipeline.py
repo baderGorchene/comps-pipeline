@@ -14,8 +14,8 @@ from pydantic import ValidationError
 
 from comps_pipeline import __version__
 from comps_pipeline.config.schema import Settings
+from comps_pipeline.filters.escalation import filter_with_escalation
 from comps_pipeline.filters.geo import compute_distances
-from comps_pipeline.filters.hard_filters import apply_hard_filters
 from comps_pipeline.ingest.cleaner import clean
 from comps_pipeline.ingest.mapper import InputError, map_rows, read_csv, suggest_mapping
 from comps_pipeline.llm import LLMClient, build_client
@@ -34,7 +34,8 @@ from comps_pipeline.models import (
     Subject,
 )
 from comps_pipeline.outputs.writers import write_manifest, write_outputs
-from comps_pipeline.ranking.ranker import rank
+from comps_pipeline.ranking.ranker import rank, subject_gaps
+from comps_pipeline.selection.final import FinalSelection, select_final
 from comps_pipeline.validation.gate import validate_review
 
 log = logging.getLogger(__name__)
@@ -44,8 +45,9 @@ log = logging.getLogger(__name__)
 class RunResult:
     run_id: str
     out_dir: Path
-    shortlist: list[Comp]
+    shortlist: list[Comp]  # sold shortlist, then listing shortlist, each in rank order
     ranked: list[Comp]
+    final: FinalSelection
     excluded: list[Excluded]
     flags: list[Flag]
     audit: list[AuditEntry]
@@ -148,19 +150,37 @@ def run(
     with timer.stage("subdivision"):
         comps = absorb(match_all(comps, subject, settings))
     with timer.stage("hard_filters"):
-        comps = absorb(apply_hard_filters(comps, subject, settings))
+        escalation = filter_with_escalation(comps, subject, settings)
+        comps = absorb(escalation.out)
     with timer.stage("rank"):
-        ranked = rank(comps, subject, settings, prior_audit=audit)
-        flags.extend(ranked.flags)
-        audit.extend(ranked.audit)
-        excluded.extend(ranked.excluded)
+        flags.extend(subject_gaps(subject, settings))
+        run_cfg = settings.run
+        pools = {
+            "sold": (run_cfg.shortlist_size, run_cfg.min_shortlist_size),
+            "listing": (run_cfg.listing_shortlist_size, 0),
+        }
+        shortlists: dict[str, list[Comp]] = {}
+        ranked_all: list[Comp] = []
+        for pool, (size, minimum) in pools.items():
+            members = [c for c in comps if c.pool == pool]
+            ranked = rank(members, subject, settings, size, minimum, pool, prior_audit=audit)
+            flags.extend(ranked.flags)
+            audit.extend(ranked.audit)
+            excluded.extend(ranked.excluded)
+            shortlists[pool] = ranked.shortlist
+            ranked_all.extend(ranked.ranked)
+        shortlist = shortlists["sold"] + shortlists["listing"]
+    with timer.stage("final_selection"):
+        final = select_final(shortlists["sold"], shortlists["listing"], subject, settings)
+        flags.extend(final.flags)
+        audit.extend(final.audit)
     batches = []
     with timer.stage("llm_review"):
         if client is None:
             flags.append(settings.flag(FlagReason.LLM_UNAVAILABLE, None, str(llm_unavailable)))
             audit.append(_summary("llm_review", message=llm_unavailable))
         else:
-            batches = review(ranked.shortlist, client, settings)
+            batches = review(shortlist, client, settings)
             audit.append(_summary("llm_review", batches=len(batches), model=llm_mode))
     with timer.stage("validation_gate"):
         for b in batches:
@@ -173,7 +193,7 @@ def run(
 
     run_id, out_dir = _new_run_dir(settings.run.output_dir)
     with timer.stage("write_outputs"):
-        paths = write_outputs(out_dir, ranked.shortlist, excluded, flags, audit, raw_rows)
+        paths = write_outputs(out_dir, shortlist, final.picks, excluded, flags, audit, raw_rows)
     manifest = RunManifest(
         run_id=run_id,
         started_at=started_at,
@@ -188,20 +208,25 @@ def run(
             "input_rows": len(rows),
             "after_clean": kept_after_clean,
             "after_hard_filters": len(comps),
-            "ranked": len(ranked.ranked),
-            "shortlist": len(ranked.shortlist),
+            "ranked": len(ranked_all),
+            "shortlist_sold": len(shortlists["sold"]),
+            "shortlist_listing": len(shortlists["listing"]),
+            "final": len(final.picks),
             "excluded": len(excluded),
             "flags": len(flags),
         },
         stage_durations_s=timer.durations,
+        escalation_level=escalation.level,
+        escalation_attempts=escalation.attempts,
     )
     paths["run_manifest.json"] = write_manifest(out_dir, manifest)
     log.info("run %s written to %s", run_id, out_dir)
     return RunResult(
         run_id=run_id,
         out_dir=out_dir,
-        shortlist=ranked.shortlist,
-        ranked=ranked.ranked,
+        shortlist=shortlist,
+        ranked=ranked_all,
+        final=final,
         excluded=excluded,
         flags=flags,
         audit=audit,

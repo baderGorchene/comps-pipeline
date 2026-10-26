@@ -30,6 +30,14 @@ def test_normalize_section_unit_and_optional_noise():
     assert normalize("Oak Estates", [*NOISE, "ESTATES"]) == "OAK"
 
 
+@pytest.mark.parametrize(
+    "raw", ["Parkhill Terrace #2", "PARKHILL TERRACE UT NO. 2", "Parkhill Terrace Unit No 2"]
+)
+def test_unit_number_spellings(raw):
+    assert normalize(raw) == "PARKHILL TERRACE UNIT 2"
+    assert numbered_parts(normalize(raw)) == {"UNIT": "2"}
+
+
 def test_numbered_parts():
     assert numbered_parts("OAK SECTION 4 UNIT 3") == {"SECTION": "4", "UNIT": "3"}
 

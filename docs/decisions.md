@@ -59,5 +59,20 @@ Newest decisions at the bottom. Each one gives the context, the decision, and it
 ### ADR-019 No python-dotenv
 **Decision:** A dozen-line `.env` reader in `config/loader.py` (KEY=VALUE, existing environment wins). **Consequence:** One fewer dependency.
 
+### ADR-020 Sold and listings are separate pools
+**Context:** The final pick is 5 sold + 1 active/option/pending, and listings have no close price or date. **Decision:** `status.sold` / `status.listing` assign each row to a pool at cleaning; anything else is excluded (`STATUS_NOT_USED`). Close price/date are required for sold rows only. Each pool is filtered with the same rules (the sale-date window applies to sold only) and ranked separately; `run.shortlist_size` and the minimum apply to sold, `run.listing_shortlist_size` to listings. **Consequence:** `status` is a required column.
+
+### ADR-021 Escalation is cumulative and config-driven
+**Decision:** `escalation.steps` are filter overrides applied one at a time, each keeping the previous ones, until the sold pool reaches `run.min_shortlist_size`. Every cumulative level is validated at load time. Each applied step is a `CRITERIA_RELAXED` flag (REVIEW) and the manifest lists every level tried. If the last level still falls short, `SHORTLIST_BELOW_MINIMUM` (BLOCKING) as before. **Consequence:** Changing the order or adding a step is a YAML edit. The sale-date window moved from cleaning to the hard filters so it can be relaxed.
+
+### ADR-022 Bracketing by strict-improvement swaps
+**Decision:** Start from the top-ranked 5 sold + 1 listing. While some attribute is not bracketed, try shortlisted sold candidates in rank order in place of the lowest-ranked sold picks, and accept the first swap whose remaining gaps are a strict subset of the current ones. Gaps shrink with each swap, so it terminates, and a swap never trades one gap for another. The listing pick is fixed. Unknown values don't count toward bracketing; a subject value that is unknown skips that attribute (flagged once on the subject). **Consequence:** The final pick stays as close to the ranking as possible, and every swap is in the audit.
+
+### ADR-023 Lot compared in acres, baths as full + half/2
+**Decision:** Lot size in exact fractions of an acre (square feet / 43,560 when given, else the `Acreage` column). Baths = full + 0.5 x half; unknown half baths make the total unknown rather than assuming 0. **Consequence:** The lot bracket is exact at the boundary like GLA.
+
+### ADR-024 Distance from coordinates, else the export's Distance column
+**Decision:** Haversine when both the subject and the comp have coordinates. Otherwise the MLS export's `Distance` value ("4.0 mi") with source `MLS`. Neither gives `NO_COORDINATES`. Subject latitude/longitude are now optional. **Consequence:** Exports without coordinates work without geocoding.
+
 ### Dependencies
 Runtime: pandas, pydantic, pyyaml, rapidfuzz, typer, rich, google-genai, streamlit. Dev: pytest, ruff. No additional direct dependencies were added beyond the agreed stack.

@@ -7,5 +7,8 @@ year_built: 2005
 lot_size_sqft: 7800
 subdivision: "Brushy Creek Phase 2"
 foundation_type: "Slab"
+bedrooms: 3
+baths_full: 2
+baths_half: 1
 effective_date: 2026-10-01
 extras: {}

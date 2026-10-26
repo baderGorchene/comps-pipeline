@@ -2,13 +2,20 @@
 # Matching is case-insensitive and ignores surrounding spaces. The first candidate found wins.
 # Columns not listed here are kept in each comp's "extras".
 mls_number: ["MLS #", "MLS Number", "MLS#", "ListingId", "MLS No", "MLSNumber"]
+status: ["St", "Status", "MlsStatus", "Listing Status", "StandardStatus"]
 close_price: ["Close Price", "Sold Price", "ClosePrice", "Sale Price", "Sales Price"]
 close_date: ["Close Date", "Sold Date", "CloseDate", "Closing Date", "Sale Date"]
-living_area: ["SqFt Living", "LivingArea", "GLA", "Sq Ft", "Total SqFt", "Living Area"]
+list_price: ["List Price", "ListPrice", "Current Price"]
+living_area: ["SqFt Living", "LivingArea", "GLA", "Sq Ft", "Total SqFt", "Living Area", "Living Sq Ft"]
 year_built: ["Year Built", "YearBuilt", "Yr Built"]
 lot_size_sqft: ["Lot SqFt", "Lot Size SqFt", "LotSizeSquareFeet", "Lot Sq Ft"]
+lot_size_acres: ["Acreage", "Acres", "Lot Size Acres", "LotSizeAcres"]
+bedrooms: ["Beds Total", "Beds", "Bedrooms", "BedroomsTotal"]
+baths_full: ["Baths Full", "Full Baths", "BathroomsFull"]
+baths_half: ["Baths Half", "Half Baths", "BathroomsHalf"]
 subdivision_raw: ["Subdivision", "SubdivisionName", "Subdivision Name", "Legal Subdivision"]
 latitude: ["Latitude", "Lat"]
 longitude: ["Longitude", "Lon", "Long", "Lng"]
+reported_distance_miles: ["Distance", "Distance (mi)", "Proximity"]   # used when there are no coordinates
 foundation_type: ["Foundation", "Foundation Details", "FoundationDetails", "Foundation Type"]
 public_remarks: ["Public Remarks", "PublicRemarks", "Remarks", "Property Description"]

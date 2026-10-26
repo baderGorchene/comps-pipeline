@@ -9,6 +9,7 @@ from comps_pipeline.models import FlagReason
 def raw(mls="100", **overrides):
     row = {
         "mls_number": mls,
+        "status": "Closed",
         "close_price": "$412,500",
         "close_date": "06/15/2026",
         "living_area": "1,980",
@@ -65,13 +66,30 @@ def test_future_close_date_invalid(subject, settings):
     assert ("close_date", FlagReason.INVALID_VALUE) in reasons(out, "100")
 
 
-def test_old_close_date_excluded(subject, settings):
-    out = clean(
-        [raw(close_date="09/30/2025"), raw("101", close_date="10/01/2025")], subject, settings
-    )
-    assert [c.mls_number for c in out.comps] == ["101"]  # exactly 12 months is kept
-    (ex,) = out.excluded
-    assert ex.mls_number == "100" and "OUT_OF_DATE_RANGE" in ex.reasons[0]
+def test_status_decides_pool(subject, settings):
+    rows = [
+        raw("1", status="S"),
+        raw("2", status="Active", close_price="", close_date=""),
+        raw("3", status="option pending", close_price="", close_date=""),
+        raw("4", status="Expired"),
+        raw("5", status=""),
+    ]
+    out = clean(rows, subject, settings)
+    assert [(c.mls_number, c.pool) for c in out.comps] == [
+        ("1", "sold"),
+        ("2", "listing"),
+        ("3", "listing"),
+    ]
+    assert not reasons(out, "2")  # listings need no close price/date
+    assert [e.mls_number for e in out.excluded] == ["4", "5"]
+    assert all("STATUS_NOT_USED" in e.reasons[0] for e in out.excluded)
+
+
+def test_reported_distance_and_rooms_parsed(subject, settings):
+    row = raw(reported_distance_miles="4.0 mi", bedrooms="3", baths_full="2", baths_half="1")
+    (c,) = clean([row], subject, settings).comps
+    assert c.reported_distance_miles.value == 4.0
+    assert c.total_baths() == 2.5 and c.bedrooms.value == 3
 
 
 def test_duplicates_keep_first(subject, settings):
@@ -83,7 +101,7 @@ def test_duplicates_keep_first(subject, settings):
 
 
 def test_every_exclusion_has_audit_entry(subject, settings):
-    rows = [raw(""), raw("1"), raw("1"), raw("2", close_date="01/01/2020")]
+    rows = [raw(""), raw("1"), raw("1"), raw("2", status="Withdrawn")]
     out = clean(rows, subject, settings)
     excluded_audit = [a for a in out.audit if a.decision == "EXCLUDED"]
     assert len(excluded_audit) == len(out.excluded) == 3

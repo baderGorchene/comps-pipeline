@@ -43,7 +43,7 @@ def test_llm_error_completes_with_unavailable(settings):
     s = with_llm(settings, enabled=True, provider="mock", mock_mode="error")
     result = pipeline.run(CSV, SUBJECT, s)
     unavailable = [f for f in result.flags if f.reason is FlagReason.LLM_UNAVAILABLE]
-    assert len(unavailable) == 3  # one per batch of 10
+    assert len(unavailable) == -(-len(result.shortlist) // 10)  # one per batch of 10
     assert result.exit_code == 0
 
 

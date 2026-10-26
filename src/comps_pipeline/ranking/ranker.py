@@ -3,6 +3,7 @@
 For each hierarchy key the comp gets a bucket floor(|value| / band); values in the same band
 tie and the next key decides. Final tie-breakers: raw distance, raw |GLA diff %|, mls_number.
 Missing values sort last within their key. Bucket math uses exact fractions.
+Sold comps and active/option/pending listings are ranked separately (one call per pool).
 """
 
 import math
@@ -37,11 +38,37 @@ class RankOutput:
     audit: list[AuditEntry] = field(default_factory=list)
 
 
-def _pct_diff(value: int | None, base: int | None) -> Fraction | None:
+def _pct_diff(value: Fraction | int | None, base: Fraction | int | None) -> Fraction | None:
     """Signed percent difference vs the subject, exact."""
     if value is None or base is None:
         return None
-    return Fraction((value - base) * 100, base)
+    return Fraction(value - base) * 100 / base
+
+
+def _diff(value: Fraction | int | None, base: Fraction | int | None) -> Fraction | None:
+    return None if value is None or base is None else Fraction(value - base)
+
+
+def subject_gaps(subject: Subject, settings: Settings) -> list[Flag]:
+    """One flag per subject attribute the ranking (and bracketing) cannot use."""
+    flags = []
+    for name, value in (
+        ("year_built", subject.year_built),
+        ("lot_size", subject.lot_acres()),
+        ("bedrooms", subject.bedrooms),
+        ("baths", subject.total_baths()),
+    ):
+        if value is None:
+            flags.append(
+                settings.flag(
+                    FlagReason.MISSING_REQUIRED_FIELD,
+                    "SUBJECT",
+                    f"subject {name} missing; every comp ties on that ranking key "
+                    "and it cannot be bracketed",
+                    name,
+                )
+            )
+    return flags
 
 
 def compute_metrics(
@@ -49,23 +76,10 @@ def compute_metrics(
 ) -> tuple[list[Comp], list[Flag]]:
     """GLA / age / lot differences. Missing inputs -> null + flag (unless already flagged)."""
     flags: list[Flag] = []
-    for name, value in (
-        ("year_built", subject.year_built),
-        ("lot_size_sqft", subject.lot_size_sqft),
-    ):
-        if value is None:
-            flags.append(
-                settings.flag(
-                    FlagReason.MISSING_REQUIRED_FIELD,
-                    "SUBJECT",
-                    f"subject {name} missing; every comp ties on that ranking key",
-                    name,
-                )
-            )
     out = []
     for c in comps:
         gla = _pct_diff(c.living_area.value, subject.living_area)
-        lot = _pct_diff(c.lot_size_sqft.value, subject.lot_size_sqft)
+        lot = _pct_diff(c.lot_acres(), subject.lot_acres())
         yb, syb = c.year_built.value, subject.year_built
         age = None if yb is None or syb is None else yb - syb
         update = {}
@@ -111,7 +125,9 @@ def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
         "distance": _bucket(None if distance is None else Fraction(distance), bands.distance_miles),
         "gla": _bucket(_pct_diff(c.living_area.value, subject.living_area), bands.gla_pct),
         "age": _bucket(c.age_diff_years.value, bands.age_years),
-        "lot": _bucket(_pct_diff(c.lot_size_sqft.value, subject.lot_size_sqft), bands.lot_pct),
+        "lot": _bucket(_pct_diff(c.lot_acres(), subject.lot_acres()), bands.lot_pct),
+        "beds": _bucket(_diff(c.bedrooms.value, subject.bedrooms), bands.beds_count),
+        "baths": _bucket(_diff(c.total_baths(), subject.total_baths()), bands.baths_count),
     }
     return (
         *(buckets[k] for k in settings.ranking.hierarchy),
@@ -132,13 +148,16 @@ def rank(
     comps: list[Comp],
     subject: Subject,
     settings: Settings,
+    size: int,
+    minimum: int = 0,
+    pool: str = "sold",
     prior_audit: list[AuditEntry] | None = None,
 ) -> RankOutput:
+    """Rank one pool; keep the top `size`; flag when fewer than `minimum` remain."""
     out = RankOutput()
     with_metrics, out.flags = compute_metrics(comps, subject, settings)
     keyed = [(sort_key(c, subject, settings), c) for c in with_metrics]
     keyed.sort(key=lambda kc: kc[0])  # stable sort; mls_number makes every key unique anyway
-    size = settings.run.shortlist_size
     for position, (key, c) in enumerate(keyed, start=1):
         stored = [list(k) if isinstance(k, tuple) else k for k in key]
         ranked = c.model_copy(update={"rank": position, "sort_key": stored})
@@ -152,6 +171,7 @@ def rank(
                 detail={
                     "rank": position,
                     "sort_key": stored,
+                    "pool": pool,
                     "hierarchy": settings.ranking.hierarchy,
                     "shortlisted": position <= size,
                 },
@@ -165,15 +185,17 @@ def rank(
                     c.source_row,
                     c.mls_number,
                     STAGE,
-                    [f"RANK_BEYOND_SHORTLIST: rank {position} > shortlist_size {size}"],
+                    [f"RANK_BEYOND_SHORTLIST: {pool} rank {position} > shortlist size {size}"],
                 )
             )
 
-    minimum = settings.run.min_shortlist_size
     if len(out.shortlist) < minimum:
         top = _top_exclusion_rule(prior_audit or [])
         culprit = f"; filter that excluded the most rows: {top[0]} ({top[1]} rows)" if top else ""
-        msg = f"shortlist has {len(out.shortlist)} comps, minimum is {minimum}{culprit}"
+        msg = (
+            f"{pool} shortlist has {len(out.shortlist)} comps after every escalation step, "
+            f"minimum is {minimum}{culprit}"
+        )
         out.flags.append(settings.flag(FlagReason.SHORTLIST_BELOW_MINIMUM, None, msg))
         out.audit.append(
             AuditEntry(

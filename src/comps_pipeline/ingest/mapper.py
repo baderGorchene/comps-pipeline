@@ -6,7 +6,8 @@ from typing import Any
 import pandas as pd
 
 # The pipeline cannot shortlist without these columns.
-REQUIRED_COLUMNS = ("mls_number", "close_price", "close_date", "living_area", "subdivision_raw")
+# close_price/close_date are only needed for sold rows, so they are checked per row.
+REQUIRED_COLUMNS = ("mls_number", "status", "living_area", "subdivision_raw")
 
 
 class InputError(Exception):
@@ -14,9 +15,15 @@ class InputError(Exception):
 
 
 def read_csv(path: Path) -> pd.DataFrame:
-    """dtype=str and no NA guessing: every cell stays exactly the text in the file."""
+    """dtype=str and no NA guessing: every cell stays exactly the text in the file.
+
+    UTF-8 first; MLS exports saved by Excel on Windows are often cp1252 (curly quotes).
+    """
     try:
-        return pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
+        try:
+            return pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            return pd.read_csv(path, dtype=str, keep_default_na=False, encoding="cp1252")
     except FileNotFoundError as e:
         raise InputError(f"CSV not found: {path}") from e
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as e:

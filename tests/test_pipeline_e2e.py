@@ -23,8 +23,15 @@ def test_e2e_llm_off_writes_all_outputs(settings):
         assert (result.out_dir / name).is_file(), name
     assert (result.out_dir / "shortlist.csv").read_bytes().startswith(b"\xef\xbb\xbf")
 
-    assert len(result.shortlist) == settings.run.shortlist_size
-    assert [c.rank for c in result.shortlist] == list(range(1, len(result.shortlist) + 1))
+    sold = [c for c in result.shortlist if c.pool == "sold"]
+    listings = [c for c in result.shortlist if c.pool == "listing"]
+    assert len(sold) == settings.run.shortlist_size and listings
+    assert result.shortlist == sold + listings
+    for pool in (sold, listings):
+        assert [c.rank for c in pool] == list(range(1, len(pool) + 1))
+    picks = result.final.picks
+    assert [c.pool for c in picks] == ["sold"] * 5 + ["listing"]
+    assert len(_rows(result.out_dir / "final_selection.csv")) == 6
     assert any(f.reason is FlagReason.LLM_UNAVAILABLE for f in result.flags)
 
     # Every input row is accounted for: shortlisted or excluded with at least one reason.
@@ -38,7 +45,7 @@ def test_e2e_llm_off_writes_all_outputs(settings):
 def test_planted_edge_cases_handled(settings):
     result = pipeline.run(CSV, SUBJECT, settings)
     reasons = " ".join(r["reasons"] for r in _rows(result.out_dir / "excluded.csv"))
-    for expected in ("DUPLICATE_LISTING", "OUT_OF_DATE_RANGE", "gla_bracket", "max_distance"):
+    for expected in ("DUPLICATE_LISTING", "STATUS_NOT_USED", "sale_date_window", "gla_bracket"):
         assert expected in reasons
     flag_reasons = {f.reason for f in result.flags}
     assert {
@@ -53,15 +60,39 @@ def test_determinism_identical_shortlist_json(settings):
     a = pipeline.run(CSV, SUBJECT, settings)
     b = pipeline.run(CSV, SUBJECT, settings)
     assert a.run_id != b.run_id
-    for name in ("shortlist.json", "shortlist.csv", "excluded.csv", "flags.json", "audit.jsonl"):
+    names = ("shortlist.json", "final_selection.json", "excluded.csv", "flags.json", "audit.jsonl")
+    for name in names:
         assert (a.out_dir / name).read_bytes() == (b.out_dir / name).read_bytes(), name
 
 
-def test_below_minimum_exits_2(settings):
-    s = settings.model_copy(
-        update={"filters": settings.filters.model_copy(update={"max_distance_miles": 0.05})}
+def _escalating(settings, start_miles, steps):
+    return settings.model_copy(
+        update={
+            "filters": settings.filters.model_copy(update={"max_distance_miles": start_miles}),
+            "escalation": settings.escalation.model_copy(update={"steps": steps}),
+        }
     )
+
+
+def test_escalation_relaxes_until_enough_sold(settings):
+    s = _escalating(settings, 0.05, [{"max_distance_miles": 0.1}, {"max_distance_miles": 3.0}])
     result = pipeline.run(CSV, SUBJECT, s)
+    assert result.manifest.escalation_level == 2
+    attempts = result.manifest.escalation_attempts
+    assert [a["sold_kept"] < settings.run.min_shortlist_size for a in attempts] == [
+        True,
+        True,
+        False,
+    ]
+    relaxed = [f for f in result.flags if f.reason is FlagReason.CRITERIA_RELAXED]
+    assert len(relaxed) == 2
+    assert not [f for f in result.flags if f.reason is FlagReason.SHORTLIST_BELOW_MINIMUM]
+
+
+def test_below_minimum_after_escalation_exits_2(settings):
+    s = _escalating(settings, 0.05, [{"max_distance_miles": 0.1}])
+    result = pipeline.run(CSV, SUBJECT, s)
+    assert result.manifest.escalation_level == 1
     (flag,) = [f for f in result.flags if f.reason is FlagReason.SHORTLIST_BELOW_MINIMUM]
     assert "max_distance" in flag.message
     assert result.exit_code == 2

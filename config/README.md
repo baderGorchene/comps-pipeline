@@ -23,8 +23,17 @@ A typo in a setting name, or a missing setting, is an error. There are no hidden
 | Setting | Meaning | Example |
 |---|---|---|
 | `output_dir` | Where run folders are created | `data/output` |
-| `shortlist_size` | How many ranked comps to keep | `30` |
-| `min_shortlist_size` | Fewer than this gives a BLOCKING flag (exit code 2) naming the filter that removed the most rows | `25` |
+| `shortlist_size` | How many ranked **sold** comps to keep | `30` |
+| `min_shortlist_size` | Fewer sold candidates than this triggers `escalation`. Still fewer after the last step gives a BLOCKING flag (exit code 2) naming the filter that removed the most rows | `20` |
+| `listing_shortlist_size` | How many ranked active/option/pending listings to keep | `10` |
+
+### status
+| Setting | Meaning |
+|---|---|
+| `sold` | Status values (any case) ranked as sold comps. Need a close price and close date |
+| `listing` | Status values ranked as current listings (active, option, pending). No close data needed |
+
+Any other status (expired, withdrawn, blank) is excluded with `STATUS_NOT_USED`. A value may not appear in both lists.
 
 ### ingest
 | Setting | Meaning |
@@ -34,15 +43,40 @@ A typo in a setting name, or a missing setting, is an error. There are no hidden
 ### filters
 | Setting | Meaning | Example |
 |---|---|---|
-| `gla_bracket_pct` | Keep comps whose living area is within this percent of the subject (whole number) | `30`: subject 2,000 sq ft keeps 1,400-2,600 |
-| `gla_bracket_inclusive` | `true` keeps comps exactly on the edge (1,400 and 2,600) | `true` |
+| `gla_bracket_pct` | Keep comps whose living area is within this percent of the subject (whole number) | `25`: subject 2,000 sq ft keeps 1,500-2,500 |
+| `gla_bracket_inclusive` | `true` keeps comps exactly on the edge (1,500 and 2,500) | `true` |
 | `missing_gla` | Comp with no usable living area: `exclude` or `keep_and_flag` | `exclude` |
-| `max_distance_miles` | Straight-line distance limit | `1.0` |
-| `missing_distance` | Comp with no coordinates: `exclude` or `keep_and_flag` | `exclude` |
-| `require_subdivision_match` | Drop comps whose subdivision doesn't match (tier 3) | `true` |
+| `lot_bracket_pct` / `lot_bracket_inclusive` | Same rule for the lot, compared in acres (square feet are converted; `Acreage` is used when there are no square feet) | `25` |
+| `missing_lot` | Comp with no lot size: `exclude` or `keep_and_flag` | `keep_and_flag` |
+| `max_distance_miles` | Distance limit: straight-line from coordinates, else the export's `Distance` column | `3.0` |
+| `missing_distance` | Comp with neither coordinates nor a reported distance: `exclude` or `keep_and_flag` | `exclude` |
+| `require_subdivision_match` | `true` drops comps whose subdivision doesn't match (tier 3). `false` keeps them; same subdivision still ranks first | `false` |
 | `subdivision_min_score` | Fuzzy similarity (0-100) needed to count as a possible match (tier 2, flagged for review) | `90` |
-| `sale_date_max_months` | Sales closed longer ago than this, counted back from the subject's effective date, are excluded | `12` |
+| `sale_date_max_months` | Sold comps closed longer ago than this, counted back from the subject's effective date, are excluded. Listings are not affected | `12` |
+| `missing_close_date` | Sold comp with no usable close date: `exclude` or `keep_and_flag` | `exclude` |
 | `required_features` | Exact values a comp must have. Works with standard fields or any CSV column | `{ foundation_type: "Crawl Space" }` |
+
+### escalation
+`steps` is a list of filter overrides. While there are fewer than `min_shortlist_size` sold candidates, the steps are applied one at a time, **cumulatively**: step 2 keeps step 1's change. The default order follows the rule "distance first, then GLA, then lookback":
+
+```yaml
+steps:
+  - { max_distance_miles: 4.0 }
+  - { max_distance_miles: 5.0 }
+  - { gla_bracket_pct: 30 }
+  - { sale_date_max_months: 24 }
+```
+
+Each step applied adds a `CRITERIA_RELAXED` flag, and the manifest lists every level tried with its sold/listing counts.
+
+### selection
+| Setting | Meaning | Example |
+|---|---|---|
+| `sold_count` / `listing_count` | The final pick | `5` sold + `1` listing |
+| `bracket_attributes` | The subject needs at least one pick above and one below on each | `[gla, lot, age, beds, baths]` |
+| `equal_counts_as_bracketed` | `true`: a pick equal to the subject counts as both above and below | `false` |
+
+The top-ranked picks are taken first. If an attribute is not bracketed, lower-ranked sold comps from the shortlist are tried in place of the lowest-ranked sold picks; a swap is accepted only if it leaves strictly fewer unbracketed attributes (and adds none). The listing pick is not swapped. What can't be fixed gets a `NOT_BRACKETED` flag. Baths count as full + 0.5 x half.
 
 ### matching
 | Setting | Meaning |
@@ -54,7 +88,7 @@ Subdivision tiers: **0** same name after cleanup (case, "Ph"/"Phase", "II"/"2", 
 ### ranking
 | Setting | Meaning |
 |---|---|
-| `hierarchy` | Priority order. Must contain each of `subdivision, distance, gla, age, lot` exactly once |
+| `hierarchy` | Priority order. Must contain each of `subdivision, distance, gla, age, lot, beds, baths` exactly once. Sold comps and listings are ranked separately with the same order |
 | `tolerance_bands` | Differences inside the same band count as a tie, so the next key decides. With `distance_miles: 0.25`, comps at 0.31 and 0.32 mi tie on distance and GLA decides |
 
 Final tie-breakers, always in this order: exact distance, exact GLA difference, MLS number.
@@ -83,7 +117,7 @@ How serious each flag reason is: `INFO`, `REVIEW` or `BLOCKING`. Every reason mu
 | Severity | Reasons |
 |---|---|
 | BLOCKING | SHORTLIST_BELOW_MINIMUM |
-| REVIEW | MISSING_REQUIRED_FIELD, INVALID_VALUE, NO_COORDINATES, SUBDIVISION_UNCERTAIN, POSSIBLE_NON_ARMS_LENGTH, REMARKS_CONCERN, LLM_SCHEMA_FAILURE |
-| INFO | DUPLICATE_LISTING, OUT_OF_DATE_RANGE, LLM_UNKNOWN_ID, LLM_EVIDENCE_NOT_FOUND, LLM_DISALLOWED_REASON, LLM_UNAVAILABLE |
+| REVIEW | MISSING_REQUIRED_FIELD, INVALID_VALUE, NO_COORDINATES, SUBDIVISION_UNCERTAIN, POSSIBLE_NON_ARMS_LENGTH, REMARKS_CONCERN, LLM_SCHEMA_FAILURE, CRITERIA_RELAXED, NOT_BRACKETED, NO_LISTING_COMP |
+| INFO | DUPLICATE_LISTING, STATUS_NOT_USED, LLM_UNKNOWN_ID, LLM_EVIDENCE_NOT_FOUND, LLM_DISALLOWED_REASON, LLM_UNAVAILABLE |
 
 The dashboard's "Save as default" rewrites `settings.yaml` without these comments. The previous version is kept as `settings.yaml.bak`.

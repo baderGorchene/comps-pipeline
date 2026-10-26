@@ -6,6 +6,7 @@ from tests.conftest import SAMPLES
 
 MAPPING = {
     "mls_number": ["MLS #"],
+    "status": ["Status"],
     "close_price": ["Close Price"],
     "close_date": ["Close Date"],
     "living_area": ["SqFt Living", "GLA"],
@@ -28,8 +29,8 @@ def test_mapping_is_case_and_whitespace_insensitive():
 
 def test_unmapped_columns_go_to_extras():
     df = pd.DataFrame(
-        [["1", "$1", "1/1/2026", "1500", "X", "Y"]],
-        columns=["MLS #", "Close Price", "Close Date", "GLA", "Subdivision", "Pool"],
+        [["1", "S", "$1", "1/1/2026", "1500", "X", "Y"]],
+        columns=["MLS #", "Status", "Close Price", "Close Date", "GLA", "Subdivision", "Pool"],
     )
     (row,) = map_rows(df, MAPPING)
     assert row["living_area"] == "1500"
@@ -48,4 +49,10 @@ def test_missing_required_column_lists_available_headers():
 def test_sample_maps_with_repo_mapping(settings):
     rows = map_rows(read_csv(SAMPLES / "mls_sample.csv"), settings.column_mapping)
     assert len(rows) == 300
-    assert {"Status", "Beds", "Pool"} <= set(rows[0]["extras"])
+    assert set(rows[0]["extras"]) == {"Address", "Pool"}
+
+
+def test_cp1252_export_is_read(tmp_path):
+    path = tmp_path / "x.csv"
+    path.write_bytes("MLS #,Remarks\n1,\u201cquoted\u201d\n".encode("cp1252"))
+    assert read_csv(path).iloc[0]["Remarks"] == "\u201cquoted\u201d"

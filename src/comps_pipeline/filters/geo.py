@@ -24,13 +24,21 @@ def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float
 
 
 def compute_distances(comps: list[Comp], subject: Subject, settings: Settings) -> StageOutput:
-    """Distance to the subject. Missing coordinates -> null + NO_COORDINATES, never a guess.
-    Whether such comps are dropped is decided by the distance filter (filters.missing_distance)."""
+    """Distance to the subject: haversine when both sides have coordinates, else the MLS
+    export's own Distance column, else null + NO_COORDINATES (never a guess).
+    Whether unknown-distance comps are dropped is decided by filters.missing_distance."""
     out = StageOutput()
+    subject_coords = subject.latitude is not None and subject.longitude is not None
     for comp in comps:
         lat, lon = comp.latitude.value, comp.longitude.value
-        if lat is None or lon is None:
-            msg = "latitude/longitude missing or invalid; distance unknown"
+        reported = comp.reported_distance_miles.value
+        if subject_coords and lat is not None and lon is not None:
+            miles = haversine_miles(subject.latitude, subject.longitude, lat, lon)
+            cell = Cell(value=miles, source=Source.COMPUTED)
+        elif reported is not None:
+            cell = Cell(value=reported, source=Source.MLS, note="distance reported by the MLS")
+        else:
+            msg = "no coordinates and no reported distance; distance unknown"
             out.flags.append(
                 settings.flag(FlagReason.NO_COORDINATES, comp.mls_number, msg, "distance_miles")
             )
@@ -44,8 +52,5 @@ def compute_distances(comps: list[Comp], subject: Subject, settings: Settings) -
                 )
             )
             cell = Cell(source=Source.NONE, flag=FlagReason.NO_COORDINATES, note=msg)
-        else:
-            miles = haversine_miles(subject.latitude, subject.longitude, lat, lon)
-            cell = Cell(value=miles, source=Source.COMPUTED)
         out.comps.append(comp.model_copy(update={"distance_miles": cell}))
     return out

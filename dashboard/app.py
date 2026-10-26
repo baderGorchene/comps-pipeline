@@ -44,6 +44,9 @@ def sidebar(base: dict) -> dict:
     sb.header("Filters")
     f["gla_bracket_pct"] = sb.number_input("GLA bracket (+/- %)", 0, 100, f["gla_bracket_pct"])
     f["gla_bracket_inclusive"] = sb.toggle("Boundary is inclusive", f["gla_bracket_inclusive"])
+    f["lot_bracket_pct"] = sb.number_input(
+        "Lot bracket, acres (+/- %)", 0, 100, f["lot_bracket_pct"]
+    )
     f["max_distance_miles"] = sb.number_input(
         "Max distance (miles)", 0.05, 50.0, float(f["max_distance_miles"]), step=0.05
     )
@@ -64,7 +67,7 @@ def sidebar(base: dict) -> dict:
 
     sb.header("Ranking")
     order = sb.multiselect(
-        "Hierarchy (in priority order, pick all five)", RANKING_KEYS, cfg["ranking"]["hierarchy"]
+        "Hierarchy (in priority order, pick all seven)", RANKING_KEYS, cfg["ranking"]["hierarchy"]
     )
     cfg["ranking"]["hierarchy"] = order
     b["distance_miles"] = sb.number_input(
@@ -75,7 +78,13 @@ def sidebar(base: dict) -> dict:
     b["lot_pct"] = sb.number_input("Lot band (%)", 0.5, 100.0, float(b["lot_pct"]))
     r["shortlist_size"] = sb.number_input("Shortlist size", 1, 200, r["shortlist_size"])
     r["min_shortlist_size"] = sb.number_input(
-        "Minimum shortlist size", 0, 200, r["min_shortlist_size"]
+        "Minimum sold candidates (else relax criteria)", 0, 200, r["min_shortlist_size"]
+    )
+    r["listing_shortlist_size"] = sb.number_input(
+        "Listing shortlist size", 1, 200, r["listing_shortlist_size"]
+    )
+    cfg["selection"]["equal_counts_as_bracketed"] = sb.toggle(
+        "Equal to subject counts as bracketed", cfg["selection"]["equal_counts_as_bracketed"]
     )
 
     sb.header("LLM review")
@@ -116,9 +125,18 @@ def show(result: pipeline.RunResult) -> None:
     p = result.paths
     st.success(
         f"Run {result.run_id}: {len(result.shortlist)} comps shortlisted, "
-        f"exit code {result.exit_code}"
+        f"{result.manifest.escalation_level} escalation step(s), exit code {result.exit_code}"
     )
-    tabs = st.tabs(["Shortlist", "Red flags", "Excluded", "Audit", "Run info"])
+    tabs = st.tabs(["Final 6", "Shortlist", "Red flags", "Excluded", "Audit", "Run info"])
+    with tabs[0]:
+        st.dataframe(
+            pd.read_csv(p["final_selection.csv"], encoding="utf-8-sig", dtype=str),
+            hide_index=True,
+        )
+        st.caption(f"Not bracketed: {result.final.gaps or 'none'}")
+        if result.final.swaps:
+            st.dataframe(pd.DataFrame(result.final.swaps).astype(str), hide_index=True)
+    tabs = tabs[1:]
     with tabs[0]:
         st.dataframe(
             pd.read_csv(p["shortlist.csv"], encoding="utf-8-sig", dtype=str), hide_index=True

@@ -21,12 +21,18 @@ SUBJECT = {
     "lot_size_sqft": 7800,
     "subdivision": "Brushy Creek Phase 2",
     "foundation_type": "Slab",
+    "bedrooms": 3,
+    "baths_full": 2,
+    "baths_half": 1,
 }
 HEADERS = [
-    "MLS #", "Status", "Address", "Close Price", "Close Date", "SqFt Living", "Year Built",
-    "Lot SqFt", "Subdivision", "Latitude", "Longitude", "Foundation", "Public Remarks",
-    "Beds", "Baths Full", "Pool",
+    "MLS #", "Status", "Address", "List Price", "Close Price", "Close Date", "SqFt Living",
+    "Year Built", "Lot SqFt", "Subdivision", "Latitude", "Longitude", "Foundation",
+    "Public Remarks", "Beds", "Baths Full", "Baths Half", "Pool",
 ]  # fmt: skip
+# Share of generated rows that are current listings, and that are expired (excluded).
+LISTING_STATUSES = ["Active", "Pending", "Option Pending"]
+LISTING_SHARE, EXPIRED_SHARE = 0.06, 0.02
 SUBJECT_VARIANTS = [
     "Brushy Creek Phase 2", "BRUSHY CREEK PHASE 2", "Brushy Creek Ph 2", "Brushy Creek Ph. 2",
     "Brushy Creek Phase II",
@@ -90,6 +96,7 @@ def base_row(rng: random.Random, mls: str) -> dict[str, str]:
         "MLS #": mls,
         "Status": "Closed",
         "Address": f"{rng.randint(100, 4999)} {rng.choice(STREETS)}, Round Rock, TX 78681",
+        "List Price": money(rng, round(price * 1.02 / 500) * 500),
         "Close Price": money(rng, price),
         "Close Date": (EFFECTIVE_DATE - dt.timedelta(days=days_ago)).strftime("%m/%d/%Y"),
         "SqFt Living": f"{gla:,}" if rng.random() < 0.3 else str(gla),
@@ -100,18 +107,19 @@ def base_row(rng: random.Random, mls: str) -> dict[str, str]:
         "Longitude": f"{lon:.6f}",
         "Foundation": "Slab" if rng.random() < 0.85 else "Pier & Beam",
         "Public Remarks": rng.choice(ORDINARY_REMARKS),
-        "Beds": str(rng.randint(3, 5)),
+        "Beds": str(rng.randint(2, 5)),
         "Baths Full": str(rng.randint(2, 3)),
+        "Baths Half": str(rng.randint(0, 1)),
         "Pool": "Y" if rng.random() < 0.2 else "N",
     }
 
 
 # Each special overrides fields of a "near twin of the subject" row.
 SPECIALS: list[dict[str, str]] = [
-    {"SqFt Living": "1400", "Public Remarks": "GLA exactly 30% below subject."},
-    {"SqFt Living": "1399", "Public Remarks": "GLA 1 sqft beyond the lower 30% boundary."},
-    {"SqFt Living": "2600", "Public Remarks": "GLA exactly 30% above subject."},
-    {"SqFt Living": "2,601", "Public Remarks": "GLA 1 sqft beyond the upper 30% boundary."},
+    {"SqFt Living": "1500", "Public Remarks": "GLA exactly 25% below subject."},
+    {"SqFt Living": "1499", "Public Remarks": "GLA 1 sqft beyond the lower 25% boundary."},
+    {"SqFt Living": "2500", "Public Remarks": "GLA exactly 25% above subject."},
+    {"SqFt Living": "2,501", "Public Remarks": "GLA 1 sqft beyond the upper 25% boundary."},
     {"Subdivision": "brushy creek phase 2"},
     {"Subdivision": "Brushy Creek Ph 2"},
     {"Subdivision": "Brushy Creek Phase II"},
@@ -127,6 +135,10 @@ SPECIALS: list[dict[str, str]] = [
     {"Public Remarks": "Investor special! Needs paint, carpet and some TLC. Cash or conventional."},
     {"Public Remarks": "Fully renovated 2023: new kitchen, quartz counters, new roof and windows."},
     {"Close Price": "$389,900", "Public Remarks": "Seller paid closing costs. Clean and bright."},
+    {"Status": "Active", "Close Price": "", "Close Date": ""},  # listing, near twin
+    {"Status": "Pending", "Close Price": "", "Close Date": ""},
+    {"Status": "Expired", "Close Price": "", "Close Date": ""},  # excluded by status
+    {"Status": "", "Public Remarks": "Status left blank."},  # excluded by status
 ]
 DUPLICATE_OF = [4, 14]  # indexes into SPECIALS whose MLS number is reused later
 
@@ -163,7 +175,11 @@ def generate(rows: int, seed: int) -> list[dict[str, str]]:
         row.update(special)
         out.append(row)
     for i in range(len(SPECIALS), rows - len(DUPLICATE_OF)):
-        out.append(base_row(rng, mls_numbers[i]))
+        row, roll = base_row(rng, mls_numbers[i]), rng.random()
+        if roll < LISTING_SHARE + EXPIRED_SHARE:
+            status = rng.choice(LISTING_STATUSES) if roll < LISTING_SHARE else "Expired"
+            row.update({"Status": status, "Close Price": "", "Close Date": ""})
+        out.append(row)
     rng.shuffle(out)
     for idx in DUPLICATE_OF:  # appended last so the original is always the first occurrence
         dup = base_row(rng, mls_numbers[idx])
@@ -184,6 +200,9 @@ def subject_yaml() -> str:
         f"lot_size_sqft: {s['lot_size_sqft']}\n"
         f'subdivision: "{s["subdivision"]}"\n'
         f'foundation_type: "{s["foundation_type"]}"\n'
+        f"bedrooms: {s['bedrooms']}\n"
+        f"baths_full: {s['baths_full']}\n"
+        f"baths_half: {s['baths_half']}\n"
         f"effective_date: {EFFECTIVE_DATE.isoformat()}\n"
         "extras: {}\n"
     )

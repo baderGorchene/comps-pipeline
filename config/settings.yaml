@@ -4,33 +4,56 @@
 run:
   output_dir: data/output        # one sub-folder per run
   shortlist_size: 30             # how many ranked comps to keep
-  min_shortlist_size: 25         # fewer than this -> BLOCKING flag
+  min_shortlist_size: 20         # fewer sold candidates -> relax criteria (escalation), then BLOCKING
+  listing_shortlist_size: 10     # how many ranked active/option/pending listings to keep
 
 ingest:
   date_formats: ["%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y"]   # tried in order
 
+# MLS status values (case-insensitive). Sold vs active/option/pending are ranked separately.
+# Any other status (expired, withdrawn, cancelled...) is excluded.
+status:
+  sold: [S, SOLD, CLOSED]
+  listing: [A, ACTIVE, O, OPTION, OPTION PENDING, P, PENDING, AC, ACTIVE CONTINGENT, ACTIVE UNDER CONTRACT]
+
+# Baseline criteria. escalation.steps loosen them when there are too few sold candidates.
 filters:
-  gla_bracket_pct: 30            # whole number: comps within +/- 30% of subject living area
-  gla_bracket_inclusive: true    # true: exactly 30% off is kept
+  gla_bracket_pct: 25            # whole number: comps within +/- 25% of subject living area
+  gla_bracket_inclusive: true    # true: exactly 25% off is kept
   missing_gla: exclude           # exclude | keep_and_flag
-  max_distance_miles: 1.0
+  lot_bracket_pct: 25            # +/- 25% of subject lot, measured in acres
+  lot_bracket_inclusive: true
+  missing_lot: keep_and_flag     # exclude | keep_and_flag
+  max_distance_miles: 3.0
   missing_distance: exclude      # exclude | keep_and_flag
-  require_subdivision_match: true
+  require_subdivision_match: false   # false: same subdivision is ranked first, others still allowed
   subdivision_min_score: 90      # 0-100 fuzzy score needed for an uncertain (tier 2) match
-  sale_date_max_months: 12       # older sales are excluded
+  sale_date_max_months: 12       # sold pool only: older sales are excluded
+  missing_close_date: exclude    # sold comp with unknown close date: exclude | keep_and_flag
   required_features: {}          # example: { foundation_type: "Crawl Space" }
+
+# Applied one at a time, cumulatively, while sold candidates < run.min_shortlist_size.
+# Order follows the rules: distance first (no adjustment cost), then GLA, then lookback.
+escalation:
+  steps:
+    - { max_distance_miles: 4.0 }
+    - { max_distance_miles: 5.0 }
+    - { gla_bracket_pct: 30 }
+    - { sale_date_max_months: 24 }
 
 matching:
   # Words dropped before comparing subdivision names. Add ESTATES here only if wanted.
   noise_words: [SUBDIVISION, SUBD, SUB, ADDN, ADDITION]
 
 ranking:
-  hierarchy: [subdivision, distance, gla, age, lot]   # must be a permutation of these five
+  hierarchy: [subdivision, distance, gla, age, lot, beds, baths]   # a permutation of these seven
   tolerance_bands:               # values inside the same band count as a tie
     distance_miles: 0.25
     gla_pct: 5
     age_years: 5
     lot_pct: 10
+    beds_count: 1
+    baths_count: 1                # full = 1, half = 0.5
 
 llm:
   enabled: true
@@ -48,13 +71,19 @@ llm:
 validation:
   require_evidence_quote: true
 
+# Final pick from the ranked shortlists.
+selection:
+  sold_count: 5
+  listing_count: 1               # active, option or pending
+  bracket_attributes: [gla, lot, age, beds, baths]   # subject needs one comp above and one below
+  equal_counts_as_bracketed: false   # true: a comp equal to the subject counts as both sides
+
 # Severity per flag reason: INFO | REVIEW | BLOCKING. Every reason must be listed.
 # Any BLOCKING flag makes the run exit with code 2.
 severity:
   MISSING_REQUIRED_FIELD: REVIEW
   INVALID_VALUE: REVIEW
   DUPLICATE_LISTING: INFO
-  OUT_OF_DATE_RANGE: INFO
   NO_COORDINATES: REVIEW
   SUBDIVISION_UNCERTAIN: REVIEW
   POSSIBLE_NON_ARMS_LENGTH: REVIEW
@@ -65,6 +94,10 @@ severity:
   LLM_EVIDENCE_NOT_FOUND: INFO
   LLM_DISALLOWED_REASON: INFO
   LLM_UNAVAILABLE: INFO
+  STATUS_NOT_USED: INFO
+  CRITERIA_RELAXED: REVIEW
+  NOT_BRACKETED: REVIEW
+  NO_LISTING_COMP: REVIEW
   # Reserved for Phase 2 (condition engine)
   INSUFFICIENT_EVIDENCE: REVIEW
   ADJACENT_DISAGREEMENT: REVIEW

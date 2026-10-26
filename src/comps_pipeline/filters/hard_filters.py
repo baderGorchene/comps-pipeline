@@ -6,9 +6,11 @@ row fails, not only the first one.
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from fractions import Fraction
 from typing import Any
 
 from comps_pipeline.config.schema import Settings
+from comps_pipeline.ingest.cleaner import months_before
 from comps_pipeline.models import AuditEntry, Comp, Decision, Excluded, StageOutput, Subject
 from comps_pipeline.models.comp import STANDARD_FIELDS
 
@@ -57,6 +59,66 @@ def gla_filter(comps: list[Comp], subject: Subject, settings: Settings) -> Filte
                 f"of subject {subject.living_area}"
             )
             res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg, living_area=gla))
+    return res
+
+
+def lot_in_bracket(
+    comp_acres: Fraction, subject_acres: Fraction, pct: int, inclusive: bool
+) -> bool:
+    """Exact fractions: no float rounding at the boundary."""
+    low, high = subject_acres * (100 - pct), subject_acres * (100 + pct)
+    scaled = comp_acres * 100
+    return low <= scaled <= high if inclusive else low < scaled < high
+
+
+def lot_filter(comps: list[Comp], subject: Subject, settings: Settings) -> FilterResult:
+    rule, f = "lot_bracket", settings.filters
+    subject_acres = subject.lot_acres()
+    if subject_acres is None:  # nothing to compare against; flagged at selection
+        return FilterResult(kept=list(comps))
+    res = FilterResult()
+    for c in comps:
+        acres = c.lot_acres()
+        if acres is None:
+            if f.missing_lot == "exclude":
+                res.audit.append(_entry(c, Decision.EXCLUDED, rule, "lot size unknown"))
+            else:
+                res.kept.append(c)
+                res.audit.append(_entry(c, Decision.FLAGGED, rule, "lot size unknown, kept"))
+        elif lot_in_bracket(acres, subject_acres, f.lot_bracket_pct, f.lot_bracket_inclusive):
+            res.kept.append(c)
+        else:
+            op = "inclusive" if f.lot_bracket_inclusive else "exclusive"
+            msg = (
+                f"lot {float(acres):.4f} ac outside +/-{f.lot_bracket_pct}% ({op}) "
+                f"of subject {float(subject_acres):.4f} ac"
+            )
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg, lot_acres=float(acres)))
+    return res
+
+
+def sale_date_filter(comps: list[Comp], subject: Subject, settings: Settings) -> FilterResult:
+    """Sold pool only: listings have no close date and are always current."""
+    rule, f, res = "sale_date_window", settings.filters, FilterResult()
+    cutoff = months_before(subject.effective_date, f.sale_date_max_months)
+    for c in comps:
+        close = c.close_date.value
+        if c.pool != "sold":
+            res.kept.append(c)
+        elif close is None:
+            if f.missing_close_date == "exclude":
+                res.audit.append(_entry(c, Decision.EXCLUDED, rule, "close date unknown"))
+            else:
+                res.kept.append(c)
+                res.audit.append(_entry(c, Decision.FLAGGED, rule, "close date unknown, kept"))
+        elif close >= cutoff:
+            res.kept.append(c)
+        else:
+            msg = (
+                f"closed {close}, before cutoff {cutoff} "
+                f"({f.sale_date_max_months} months before {subject.effective_date})"
+            )
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg, close_date=str(close)))
     return res
 
 
@@ -125,7 +187,9 @@ def required_features_filter(
 
 
 FILTERS: tuple[Callable[[list[Comp], Subject, Settings], FilterResult], ...] = (
+    sale_date_filter,
     gla_filter,
+    lot_filter,
     distance_filter,
     subdivision_filter,
     required_features_filter,

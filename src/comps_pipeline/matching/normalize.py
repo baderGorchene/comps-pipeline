@@ -9,7 +9,10 @@ KEYWORDS = {
     "SECT": "SECTION",
     "SECTION": "SECTION",
     "UNIT": "UNIT",
+    "UT": "UNIT",
 }
+# "Unit No. 2" / "Phase Number 3": the filler word after a keyword is dropped.
+NUMBER_WORDS = {"NO", "NUM", "NUMBER"}
 NUMBERED = {"PHASE", "SECTION", "UNIT"}
 ROMAN = {
     "I": "1",
@@ -23,17 +26,24 @@ ROMAN = {
     "IX": "9",
     "X": "10",
 }
-_GLUED = re.compile(r"\b(PHASE|PHS|PH|SECTION|SECT|SEC|UNIT)(\d+)\b")
+_GLUED = re.compile(r"\b(PHASE|PHS|PH|SECTION|SECT|SEC|UNIT|UT)(\d+)\b")
+_KEYWORD_HASH = re.compile(r"\b(PHASE|PHS|PH|SECTION|SECT|SEC|UNIT|UT)\W*#\s*(\d+)")  # "Phase #2"
+_HASH = re.compile(r"#\s*(\d+)")  # bare "Parkhill Terrace #2" -> unit 2
 
 
 def normalize(name: str, noise_words: Iterable[str] = ()) -> str:
-    """'Brushy Creek Ph. II' -> 'BRUSHY CREEK PHASE 2'."""
-    s = name.upper().replace("'", "")
+    """'Brushy Creek Ph. II' -> 'BRUSHY CREEK PHASE 2'; 'Parkhill Terrace #2' -> '... UNIT 2'."""
+    s = _KEYWORD_HASH.sub(r"\1 \2", name.upper().replace("'", ""))
+    s = _HASH.sub(r" UNIT \1", s)
     s = re.sub(r"[^A-Z0-9]+", " ", s)
     s = _GLUED.sub(r"\1 \2", s)
     noise = {w.upper() for w in noise_words}
-    tokens = (ROMAN.get(t, t) for t in (KEYWORDS.get(t, t) for t in s.split()))
-    return " ".join(t for t in tokens if t not in noise)
+    tokens: list[str] = []
+    for t in (ROMAN.get(t, t) for t in (KEYWORDS.get(t, t) for t in s.split())):
+        if t in noise or (t in NUMBER_WORDS and tokens and tokens[-1] in NUMBERED):
+            continue
+        tokens.append(t)
+    return " ".join(tokens)
 
 
 def numbered_parts(normalized: str) -> dict[str, str]:

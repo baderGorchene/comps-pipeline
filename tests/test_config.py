@@ -10,8 +10,11 @@ from tests.conftest import CONFIG
 
 def test_repo_settings_load():
     s = load_settings(CONFIG)
-    assert s.filters.gla_bracket_pct == 30
-    assert s.ranking.hierarchy == ["subdivision", "distance", "gla", "age", "lot"]
+    assert s.filters.gla_bracket_pct == 25
+    assert s.ranking.hierarchy == ["subdivision", "distance", "gla", "age", "lot", "beds", "baths"]
+    assert s.filters_at(0) == s.filters
+    last = s.filters_at(len(s.escalation.steps))
+    assert (last.max_distance_miles, last.gla_bracket_pct, last.sale_date_max_months) == (5, 30, 24)
     assert "living_area" in s.column_mapping
     assert s.sev(FlagReason.SHORTLIST_BELOW_MINIMUM) is Severity.BLOCKING
 
@@ -52,7 +55,7 @@ def test_invalid_hierarchy_rejected(tmp_path, hierarchy):
 
 
 def test_reordered_hierarchy_accepted(tmp_path):
-    order = ["distance", "subdivision", "lot", "gla", "age"]
+    order = ["distance", "subdivision", "lot", "gla", "age", "baths", "beds"]
     path = _write_config(tmp_path, lambda d: d["ranking"].update(hierarchy=order))
     assert load_settings(path).ranking.hierarchy == order
 
@@ -65,8 +68,8 @@ def test_unknown_fields_sent_rejected(tmp_path):
 
 def test_unknown_mapping_field_rejected(tmp_path):
     path = _write_config(tmp_path, lambda d: None)
-    (tmp_path / "column_mapping.yaml").write_text("bedrooms: [Beds]\n", encoding="utf-8")
-    with pytest.raises(ConfigError, match="bedrooms"):
+    (tmp_path / "column_mapping.yaml").write_text("garage: [Garage]\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="garage"):
         load_settings(path)
 
 
@@ -84,6 +87,19 @@ def test_severity_must_cover_every_reason(tmp_path):
 def test_missing_threshold_rejected(tmp_path):
     path = _write_config(tmp_path, lambda d: d["filters"].pop("max_distance_miles"))
     with pytest.raises(ConfigError, match="max_distance_miles"):
+        load_settings(path)
+
+
+@pytest.mark.parametrize("steps", [[{"max_distnce_miles": 4}], [{}], [{"gla_bracket_pct": 150}]])
+def test_bad_escalation_step_rejected(tmp_path, steps):
+    path = _write_config(tmp_path, lambda d: d["escalation"].update(steps=steps))
+    with pytest.raises(ConfigError):
+        load_settings(path)
+
+
+def test_overlapping_status_rejected(tmp_path):
+    path = _write_config(tmp_path, lambda d: d["status"]["listing"].append("sold"))
+    with pytest.raises(ConfigError, match="SOLD"):
         load_settings(path)
 
 

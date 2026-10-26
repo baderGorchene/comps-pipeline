@@ -6,8 +6,8 @@ In plain language, it:
 
 1. Reads the CSV exactly as exported, as text, and maps your column names to standard names.
 2. Cleans the values: prices, dates, square footage. A bad or missing value is never guessed. It is left blank and flagged.
-3. Removes rows that fail your rules: living area bracket, distance, subdivision, sale date, required features. Every removed row is listed with **every** reason it failed.
-4. Ranks the rest by your priority order (subdivision, distance, GLA, age, lot) with tolerance bands, so small differences count as ties.
+3. Splits sold comps from active/option/pending listings (by status) and removes rows that fail your rules: living area and lot brackets, distance, sale date, required features. Every removed row is listed with **every** reason it failed. If fewer than 20 sold comps survive, the rules are relaxed step by step (distance, then GLA, then lookback) and each relaxation is flagged.
+4. Ranks each pool by your priority order (subdivision, distance, GLA, age, lot, beds, baths) with tolerance bands, so small differences count as ties. Then picks the final 5 sold + 1 listing so the subject is bracketed (one comp above and one below) on GLA, lot, age, beds and baths.
 5. Optionally asks Google Gemini to **flag** remarks worth a second look (estate sale, family sale, investor special...). Gemini cannot change, rank, or add anything. Each flag must quote the remarks word for word, and the validation gate throws out any flag that doesn't check out.
 6. Writes everything to `data/output/<run_id>/`: shortlist, excluded rows, flags, a full audit trail and a run manifest.
 
@@ -85,7 +85,8 @@ If your export calls it `Apx SqFt`, add `"Apx SqFt"` to that list. Matching igno
 
 | File | Contents |
 |---|---|
-| `shortlist.csv` / `.json` | Ranked comps. The JSON keeps every value with its source and flag |
+| `shortlist.csv` / `.json` | Ranked sold comps, then ranked listings (`pool` column). The JSON keeps every value with its source and flag |
+| `final_selection.csv` / `.json` | The final 5 sold + 1 listing |
 | `excluded.csv` | Every row not shortlisted, with all reasons |
 | `flags.csv` / `.json` | Every flag: rule, LLM (accepted by the gate) and GATE (rejected LLM output) |
 | `audit.jsonl` | One line per decision, including each comp's full sort key |

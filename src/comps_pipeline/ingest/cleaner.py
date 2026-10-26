@@ -47,6 +47,16 @@ def parse_float(text: str) -> float:
         raise ValueError(f"not a number: {text!r}") from e
 
 
+def parse_miles(text: str) -> float:
+    """'4.0 mi', '0.35 miles', '1.2' -> float miles."""
+    t = text.strip().lower()
+    for unit in ("miles", "mile", "mi"):
+        if t.endswith(unit):
+            t = t[: -len(unit)]
+            break
+    return parse_float(t)
+
+
 def parse_date(text: str, formats: list[str]) -> dt.date:
     for fmt in formats:
         try:
@@ -89,10 +99,12 @@ def _positive(v: int) -> str | None:
 
 
 def parse_comp(
-    row: dict[str, Any], source_row: int, subject: Subject, settings: Settings
+    row: dict[str, Any], source_row: int, subject: Subject, settings: Settings, pool: str
 ) -> tuple[Comp, list[Flag]]:
+    """pool 'sold' needs close price/date; 'listing' (active/option/pending) does not."""
     mls = str(row["mls_number"]).strip()
     p = _RowParser(settings, mls, row)
+    sold = pool == "sold"
     effective = subject.effective_date
     formats = settings.ingest.date_formats
 
@@ -108,19 +120,36 @@ def parse_comp(
     def lon_range(v: float) -> str | None:
         return None if -180 <= v <= 180 else f"longitude {v} out of range"
 
+    def non_negative(v: float) -> str | None:
+        return None if v >= 0 else f"must not be negative, got {v}"
+
+    def positive_float(v: float) -> str | None:
+        return None if v > 0 else f"must be greater than 0, got {v}"
+
     comp = Comp(
         mls_number=mls,
         source_row=source_row,
-        close_price=p.cell("close_price", parse_int, required=True, check=_positive),
+        pool=pool,
+        status=p.cell("status", str),
+        close_price=p.cell("close_price", parse_int, required=sold, check=_positive),
         close_date=p.cell(
-            "close_date", lambda t: parse_date(t, formats), required=True, check=not_future
+            "close_date",
+            lambda t: parse_date(t, formats),
+            required=sold,
+            check=not_future if sold else None,
         ),
+        list_price=p.cell("list_price", parse_int, check=_positive),
         living_area=p.cell("living_area", parse_int, required=True, check=_positive),
         year_built=p.cell("year_built", parse_int, check=valid_year),
         lot_size_sqft=p.cell("lot_size_sqft", parse_int, check=_positive),
+        lot_size_acres=p.cell("lot_size_acres", parse_float, check=positive_float),
+        bedrooms=p.cell("bedrooms", parse_int, check=non_negative),
+        baths_full=p.cell("baths_full", parse_int, check=non_negative),
+        baths_half=p.cell("baths_half", parse_int, check=non_negative),
         subdivision_raw=p.cell("subdivision_raw", str, required=True),
         latitude=p.cell("latitude", parse_float, check=lat_range),
         longitude=p.cell("longitude", parse_float, check=lon_range),
+        reported_distance_miles=p.cell("reported_distance_miles", parse_miles, check=non_negative),
         foundation_type=p.cell("foundation_type", str),
         public_remarks=p.cell("public_remarks", str),
         extras=row.get("extras", {}),
@@ -131,7 +160,6 @@ def parse_comp(
 def clean(rows: list[dict[str, Any]], subject: Subject, settings: Settings) -> StageOutput:
     out = StageOutput()
     seen: set[str] = set()
-    cutoff = months_before(subject.effective_date, settings.filters.sale_date_max_months)
 
     def exclude(source_row: int, mls: str | None, reason: FlagReason, message: str) -> None:
         out.flags.append(settings.flag(reason, mls, message))
@@ -160,19 +188,19 @@ def clean(rows: list[dict[str, Any]], subject: Subject, settings: Settings) -> S
             )
             continue
         seen.add(mls)
-
-        comp, flags = parse_comp(row, source_row, subject, settings)
-        out.flags.extend(flags)
-        close = comp.close_date.value
-        if close is not None and close < cutoff:
+        status = str(row.get("status", "")).strip()
+        pool = settings.status.pool_of(status)
+        if pool is None:
             exclude(
                 source_row,
                 mls,
-                FlagReason.OUT_OF_DATE_RANGE,
-                f"closed {close}, before cutoff {cutoff} "
-                f"({settings.filters.sale_date_max_months} months before {subject.effective_date})",
+                FlagReason.STATUS_NOT_USED,
+                f"status {status!r} is neither sold nor active/option/pending (config status.*)",
             )
             continue
+
+        comp, flags = parse_comp(row, source_row, subject, settings, pool)
+        out.flags.extend(flags)
         for f in flags:
             out.audit.append(
                 AuditEntry(

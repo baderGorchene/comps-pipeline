@@ -9,13 +9,20 @@ from typing import Any
 from comps_pipeline.models import STANDARD_FIELDS, AuditEntry, Comp, Excluded, Flag, RunManifest
 
 SHORTLIST_COLUMNS = [
+    "pool",
     "rank",
     "mls_number",
+    "status",
     "close_price",
     "close_date",
+    "list_price",
     "living_area",
     "year_built",
     "lot_size_sqft",
+    "lot_acres",
+    "bedrooms",
+    "baths_full",
+    "baths_half",
     "subdivision_raw",
     "subdivision_normalized",
     "subdivision_tier",
@@ -29,11 +36,13 @@ SHORTLIST_COLUMNS = [
     "foundation_type",
     "public_remarks",
 ]
-DISPLAY_DECIMALS = {"distance_miles": 3, "gla_diff_pct": 2, "lot_diff_pct": 2}
+DISPLAY_DECIMALS = {"distance_miles": 3, "gla_diff_pct": 2, "lot_diff_pct": 2, "lot_acres": 4}
 FLAG_COLUMNS = ["id", "mls_number", "field", "reason", "severity", "origin", "message", "evidence"]
 OUTPUT_FILES = (
     "shortlist.csv",
     "shortlist.json",
+    "final_selection.csv",
+    "final_selection.json",
     "excluded.csv",
     "flags.json",
     "flags.csv",
@@ -68,9 +77,14 @@ def shortlist_rows(shortlist: list[Comp], flags: list[Flag]) -> list[dict[str, A
             by_comp[f.mls_number].append(f"{f.severity.value}:{f.reason.value}")
     rows = []
     for c in shortlist:
-        row: dict[str, Any] = {"rank": c.rank, "mls_number": c.mls_number}
-        for name in SHORTLIST_COLUMNS[2:]:
-            row[name] = _display(name, getattr(c, name).value)
+        row: dict[str, Any] = {"pool": c.pool, "rank": c.rank, "mls_number": c.mls_number}
+        for name in SHORTLIST_COLUMNS[3:]:
+            if name == "lot_acres":
+                acres = c.lot_acres()
+                value = None if acres is None else float(acres)
+            else:
+                value = getattr(c, name).value
+            row[name] = _display(name, value)
         row["flags"] = "; ".join(by_comp.get(c.mls_number, []))
         rows.append(row)
     return rows
@@ -94,6 +108,7 @@ def excluded_rows(excluded: list[Excluded], raw_rows: dict[int, dict[str, Any]])
 def write_outputs(
     out_dir: Path,
     shortlist: list[Comp],
+    final: list[Comp],
     excluded: list[Excluded],
     flags: list[Flag],
     audit: list[AuditEntry],
@@ -106,6 +121,10 @@ def write_outputs(
         paths["shortlist.csv"], [*SHORTLIST_COLUMNS, "flags"], shortlist_rows(shortlist, flags)
     )
     _write_json(paths["shortlist.json"], [c.model_dump(mode="json") for c in shortlist])
+    _write_csv(
+        paths["final_selection.csv"], [*SHORTLIST_COLUMNS, "flags"], shortlist_rows(final, flags)
+    )
+    _write_json(paths["final_selection.json"], [c.model_dump(mode="json") for c in final])
     excluded_cols = ["source_row", "mls_number", "stage", "reasons"] + [
         f for f in STANDARD_FIELDS if f != "mls_number"
     ]

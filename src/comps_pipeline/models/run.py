@@ -20,6 +20,8 @@ class RunManifest(BaseModel):
     llm_mode: str  # gemini model name | mock:<mode> | off
     row_counts: dict[str, int] = Field(default_factory=dict)
     stage_durations_s: dict[str, float] = Field(default_factory=dict)
+    escalation_level: int = 0  # how many escalation steps were applied
+    escalation_attempts: list[dict[str, Any]] = Field(default_factory=list)
 
 
 @dataclass
