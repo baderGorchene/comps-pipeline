@@ -14,11 +14,25 @@ log = logging.getLogger(__name__)
 
 
 class GeminiClient:
-    def __init__(self, api_key: str, model: str, temperature: float = 0):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        temperature: float,
+        timeout_seconds: float,
+        attempts: int,
+    ):
         if not api_key or not model:
             raise ValueError("Gemini needs both an API key and a model name")
         self._api_key = api_key
-        self._client = genai.Client(api_key=api_key)
+        # Bounded: without a timeout an overloaded model (503) can stall the run for minutes.
+        self._client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(
+                timeout=int(timeout_seconds * 1000),
+                retry_options=types.HttpRetryOptions(attempts=attempts),
+            ),
+        )
         self.model = model
         self.temperature = temperature
 

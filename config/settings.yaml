@@ -63,6 +63,8 @@ llm:
   api_key_env: GEMINI_API_KEY    # env var holding the API key (never logged)
   temperature: 0
   max_retries: 1
+  timeout_seconds: 60          # give up on one Gemini request after this
+  api_attempts: 2               # tries per request when Gemini is overloaded (503) or times out
   batch_size: 10
   fields_sent: [mls_number, subdivision_raw, public_remarks, close_price, close_date]
   cache: true

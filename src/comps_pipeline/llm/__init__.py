@@ -36,5 +36,7 @@ def build_client(settings: Settings) -> tuple[LLMClient | None, str, str | None]
         api_key=os.environ[cfg.api_key_env],
         model=os.environ[cfg.model_env],
         temperature=cfg.temperature,
+        timeout_seconds=cfg.timeout_seconds,
+        attempts=cfg.api_attempts,
     )
     return client, client.model, None

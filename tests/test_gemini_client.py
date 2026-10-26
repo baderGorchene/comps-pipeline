@@ -8,17 +8,18 @@ from comps_pipeline.llm.gemini_client import GeminiClient
 from comps_pipeline.llm.review import ReviewResponse
 
 FAKE_KEY = "AIza-not-a-real-key-123"
+OPTS = {"temperature": 0, "timeout_seconds": 5, "attempts": 1}
 
 
 def test_requires_key_and_model():
     with pytest.raises(ValueError):
-        GeminiClient(api_key="", model="gemini-x")
+        GeminiClient(api_key="", model="gemini-x", **OPTS)
     with pytest.raises(ValueError):
-        GeminiClient(api_key=FAKE_KEY, model="")
+        GeminiClient(api_key=FAKE_KEY, model="", **OPTS)
 
 
 def test_api_exception_becomes_result_error_and_hides_key(monkeypatch):
-    client = GeminiClient(api_key=FAKE_KEY, model="gemini-x")
+    client = GeminiClient(api_key=FAKE_KEY, model="gemini-x", **OPTS)
 
     def boom(**_):
         raise RuntimeError(f"401 invalid key {FAKE_KEY}")
@@ -30,7 +31,7 @@ def test_api_exception_becomes_result_error_and_hides_key(monkeypatch):
 
 
 def test_success_parses_and_counts_tokens(monkeypatch):
-    client = GeminiClient(api_key=FAKE_KEY, model="gemini-x", temperature=0)
+    client = GeminiClient(api_key=FAKE_KEY, model="gemini-x", **OPTS)
     seen = {}
 
     def fake(**kwargs):

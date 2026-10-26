@@ -6,6 +6,7 @@ flag can reach the outputs.
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -79,9 +80,14 @@ def review(
     system = system or load_system_prompt()
     cache = ResponseCache(cfg.cache_dir) if cfg.cache else None
     results = []
+    total = -(-len(shortlist) // cfg.batch_size)
     for index, start in enumerate(range(0, len(shortlist), cfg.batch_size)):
         batch = shortlist[start : start + cfg.batch_size]
         payload = build_payload(batch, cfg.fields_sent)
+        log.info(
+            "LLM batch %d/%d: sending %d comps to %s", index + 1, total, len(batch), client.model
+        )
+        started = time.perf_counter()
         log.debug("LLM payload batch %d: %s", index, json.dumps(payload, ensure_ascii=False))
         result = _call(client, system, payload, cache)
         attempts = 1
@@ -97,10 +103,11 @@ def review(
             result = _call(client, retry_system, payload, cache)
             attempts += 1
         log.info(
-            "batch %d: %d comps, model %s, tokens in/out %s/%s",
-            index,
-            len(batch),
-            result.model,
+            "LLM batch %d/%d: %s in %.1fs, tokens in/out %s/%s",
+            index + 1,
+            total,
+            "failed" if result.error and result.raw_text is None else "done",
+            time.perf_counter() - started,
             result.input_tokens,
             result.output_tokens,
         )

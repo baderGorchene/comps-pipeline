@@ -111,6 +111,8 @@ class LLMSettings(Strict):
     api_key_env: str
     temperature: float = Field(ge=0, le=2)
     max_retries: int = Field(ge=0)
+    timeout_seconds: float = Field(gt=0)  # per Gemini request
+    api_attempts: int = Field(ge=1)  # tries per request on 429/5xx/timeouts
     batch_size: int = Field(gt=0)
     fields_sent: list[str]
     cache: bool

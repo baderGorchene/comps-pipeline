@@ -4,8 +4,12 @@ Launch: uv run streamlit run dashboard\\app.py
 """
 
 import json
+import logging
 import shutil
 import tempfile
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pandas as pd
@@ -23,6 +27,7 @@ from comps_pipeline.config.loader import (
 )
 from comps_pipeline.config.schema import RANKING_KEYS
 from comps_pipeline.ingest.mapper import InputError
+from comps_pipeline.logging_setup import setup_logging
 from comps_pipeline.models import Subject
 
 SAMPLE_CSV = Path("data/samples/mls_sample.csv")
@@ -31,6 +36,7 @@ FILE_ONLY_KEYS = ("column_mapping", "subdivision_aliases")  # live in their own 
 
 st.set_page_config(page_title="Comps pipeline", layout="wide")
 load_dotenv()
+setup_logging("INFO")  # also echo the log in the terminal running streamlit
 
 
 @st.cache_data
@@ -212,6 +218,28 @@ def show(result: pipeline.RunResult) -> None:
         col.download_button(name, path.read_bytes(), file_name=name, key=f"dl-{name}")
 
 
+@contextmanager
+def live_log() -> Iterator[list[str]]:
+    """Stream the pipeline's INFO+ log lines into the page while it runs."""
+    box, lines = st.empty(), []
+
+    class Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            stamp = time.strftime("%H:%M:%S", time.localtime(record.created))
+            lines.append(f"{stamp} {record.levelname:<7} {record.getMessage()}")
+            box.code("\n".join(lines[-40:]), language=None)
+
+    handler, root = Handler(level=logging.INFO), logging.getLogger("comps_pipeline")
+    previous = root.level
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+    try:
+        yield lines
+    finally:
+        root.removeHandler(handler)
+        root.setLevel(previous)
+
+
 def main() -> None:
     st.title("Comparable sales shortlist")
     try:
@@ -231,10 +259,15 @@ def main() -> None:
     files = inputs()
     if st.button("Run", type="primary", disabled=settings is None or files is None):
         try:
-            with st.spinner("Running pipeline..."):
+            with st.status("Running pipeline...", expanded=True) as status, live_log() as lines:
                 st.session_state["result"] = pipeline.run(files[0], files[1], settings)
+                status.update(label="Pipeline finished", state="complete", expanded=False)
+            st.session_state["log"] = lines
         except (ConfigError, InputError) as e:
             st.error(str(e))
+    if st.session_state.get("log"):
+        with st.expander("Log of the last run"):
+            st.code("\n".join(st.session_state["log"]), language=None)
     if "result" in st.session_state:
         show(st.session_state["result"])
 

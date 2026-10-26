@@ -102,6 +102,8 @@ Final tie-breakers, always in this order: exact distance, exact GLA difference, 
 | `model_env` / `api_key_env` | Names of the environment variables (in `.env`) holding the model and key |
 | `temperature` | `0` for repeatable answers |
 | `max_retries` | Retries after a response that doesn't match the schema |
+| `timeout_seconds` | Give up on one Gemini request after this many seconds. The batch gets an `LLM_UNAVAILABLE` flag and the run continues |
+| `api_attempts` | Tries per request when Gemini is overloaded (429/503) or times out. Worst case per batch is about `timeout_seconds x api_attempts` |
 | `batch_size` | Comps per request |
 | `fields_sent` | The only fields that leave your machine. `mls_number` is required |
 | `cache` / `cache_dir` | Reuse identical answers instead of paying for them again |
