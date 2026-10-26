@@ -32,6 +32,7 @@ from comps_pipeline.models import Subject
 
 SAMPLE_CSV = Path("data/samples/mls_sample.csv")
 SAMPLE_SUBJECT = Path("data/samples/subject.yaml")
+INPUT_SUBJECT = Path("data/input/subject.yaml")  # your subject, prefills the form if present
 FILE_ONLY_KEYS = ("column_mapping", "subdivision_aliases")  # live in their own YAML files
 
 st.set_page_config(page_title="Comps pipeline", layout="wide")
@@ -117,7 +118,8 @@ def save_as_default(cfg: dict) -> None:
 
 def subject_form(col) -> bytes | None:
     """Subject typed in by hand (prefilled from the sample). Returns YAML bytes if valid."""
-    d = yaml.safe_load(SAMPLE_SUBJECT.read_text(encoding="utf-8"))
+    source = INPUT_SUBJECT if INPUT_SUBJECT.exists() else SAMPLE_SUBJECT
+    d = yaml.safe_load(source.read_text(encoding="utf-8"))
     with col.form("subject_form"):
         a, b = st.columns(2)
         data = {
@@ -144,6 +146,7 @@ def subject_form(col) -> bytes | None:
                 "Longitude", -180.0, 180.0, d.get("longitude"), format="%.6f"
             ),
             "foundation_type": a.text_input("Foundation", d.get("foundation_type", "")) or None,
+            "extras": d.get("extras") or None,  # notes from the file, not edited here
         }
         st.form_submit_button("Apply subject")
     data = {k: v for k, v in data.items() if v is not None}
