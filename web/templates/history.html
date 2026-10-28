@@ -1,18 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Past Runs | Comps Shortlist{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div class="intro">
-    <span class="eyebrow">RUN ARCHIVE</span>
+<div class="workspace-hero">
+  <div class="hero-left">
+    <div class="eyebrow-row">
+      <span class="badge-mono">RUN ARCHIVE</span>
+      <span class="eyebrow-sep">/</span>
+      <span class="eyebrow-text">IMMUTABLE AUDIT SNAPSHOTS</span>
+    </div>
     <h1>Past runs</h1>
-    <p>Every run is preserved with a full snapshot of its configuration, audit trail, and exported spreadsheets, newest first.</p>
+    <p class="hero-sub">Every run is saved in <code>data/output</code> with its complete configuration snapshot, audit trail, and exported spreadsheets, newest first.</p>
   </div>
-  <div class="head-actions">
-    <a href="{% url 'new_run' %}" class="primary" style="text-decoration:none;">+ New Run</a>
+  <div class="hero-right">
+    <a href="{% url 'new_run' %}" class="primary btn-lg" style="text-decoration:none;">+ New Run</a>
   </div>
 </div>
 
-<section class="panel">
+<section class="studio-card">
   {% if runs %}
   <div class="table-scroll">
     <table class="plain">
@@ -40,7 +44,7 @@
           <td class="num">{{ r.input_rows }}</td>
           <td class="num">{{ r.after_hf }}</td>
           <td class="num"><strong>{{ r.final }}</strong></td>
-          <td>{% if r.level %}Relaxed {{ r.level }} step{{ r.level|pluralize }}{% else %}As set{% endif %}</td>
+          <td>{% if r.level %}Relaxed {{ r.level }} step{{ r.level|pluralize }}{% else %}Baseline{% endif %}</td>
           <td>
             {% if r.blocked %}
               <span class="sev sev-blocking">Not enough comps</span>
@@ -54,7 +58,11 @@
     </table>
   </div>
   {% else %}
-    <p>No runs yet. <a href="{% url 'new_run' %}">Build a shortlist</a> to see it here.</p>
+    <div class="empty-state">
+      <strong>No runs recorded yet.</strong>
+      <p class="hint">Start your first shortlist run to inspect results and export grids.</p>
+      <a href="{% url 'new_run' %}" class="primary" style="text-decoration:none;margin-top:.75rem;">Build a shortlist →</a>
+    </div>
   {% endif %}
 </section>
 {% endblock %}

@@ -3,22 +3,30 @@
 {% block content %}
 <form method="post" class="config-page" id="config-form" novalidate>
   {% csrf_token %}
-  <div class="page-head">
-    <div class="intro">
-      <span class="eyebrow">SYSTEM CONFIGURATION</span>
+
+  <div class="workspace-hero">
+    <div class="hero-left">
+      <div class="eyebrow-row">
+        <span class="badge-mono">SYSTEM SETTINGS</span>
+        <span class="eyebrow-sep">/</span>
+        <span class="eyebrow-text">RULES · COLUMN MAPPINGS · SUBDIVISION ALIASES</span>
+      </div>
       <h1>Pipeline Rules &amp; Mappings</h1>
-      <p>Modify all business rules, tolerance bands, CSV header mappings, and subdivision aliases in one place. Changes write directly to <code>config/settings.yaml</code>, <code>config/column_mapping.yaml</code>, and <code>config/subdivision_aliases.yaml</code>.</p>
+      <p class="hero-sub">Configure every threshold, relaxation step, ranking priority, CSV column mapping, and diagnostic severity. Saved changes write directly to <code>settings.yaml</code>, <code>column_mapping.yaml</code>, and <code>subdivision_aliases.yaml</code>.</p>
     </div>
-    <div class="head-actions">
-      <a href="{% url 'new_run' %}" class="btn-outline">← Back to New Run</a>
-      <button type="submit" class="primary">Save All Configurations</button>
+    <div class="hero-right">
+      <a href="{% url 'new_run' %}" class="btn-outline">← Back to Workspace</a>
+      <button type="submit" class="primary btn-lg">Save Configuration</button>
     </div>
   </div>
 
   {% if saved %}
     <div class="alert alert-ok" role="status">
-      <strong>Configuration saved.</strong>
-      <p>All changes have been validated and written to <code>config/settings.yaml</code>, <code>config/column_mapping.yaml</code>, and <code>config/subdivision_aliases.yaml</code> (previous versions backed up as <code>.yaml.bak</code>).</p>
+      <div class="alert-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <strong>Configuration saved.</strong>
+      </div>
+      <p>Validated and written to <code>config/settings.yaml</code>, <code>config/column_mapping.yaml</code>, and <code>config/subdivision_aliases.yaml</code> (automatic <code>.yaml.bak</code> backups created).</p>
     </div>
   {% endif %}
 
@@ -30,35 +38,84 @@
     </div>
   {% endif %}
 
-  <div class="config-layout">
-    <!-- Left sticky navigation -->
-    <aside class="config-nav" aria-label="Configuration sections">
-      <div class="config-nav-box">
-        <div class="nav-title">SECTIONS</div>
-        <a href="#section-filters" class="nav-item"><span>01</span> Filtering Thresholds</a>
-        <a href="#section-escalation" class="nav-item"><span>02</span> Shortlist &amp; Relaxation</a>
-        <a href="#section-ranking" class="nav-item"><span>03</span> Ranking &amp; Selection</a>
-        <a href="#section-mapping" class="nav-item"><span>04</span> CSV Column Mapping</a>
-        <a href="#section-subdivision" class="nav-item"><span>05</span> Subdivision Aliases</a>
-        <a href="#section-severities" class="nav-item"><span>06</span> Statuses &amp; Severities</a>
+  <div class="config-studio">
+    <!-- Left Studio Sidebar Tabs -->
+    <aside class="studio-sidebar" aria-label="Configuration categories">
+      <div class="sidebar-card">
+        <div class="sidebar-heading">CONFIGURATION MODULES</div>
+        <button type="button" class="tab-btn active" data-tab="section-filters">
+          <span class="tab-idx">01</span>
+          <span class="tab-text">
+            <strong>Filtering Rules</strong>
+            <small>GLA, Lot, Distance, Lookback</small>
+          </span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="section-escalation">
+          <span class="tab-idx">02</span>
+          <span class="tab-text">
+            <strong>Shortlist &amp; Relaxation</strong>
+            <small>Pool caps &amp; escalation steps</small>
+          </span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="section-ranking">
+          <span class="tab-idx">03</span>
+          <span class="tab-text">
+            <strong>Ranking &amp; Bracketing</strong>
+            <small>Hierarchy &amp; tolerance bands</small>
+          </span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="section-mapping">
+          <span class="tab-idx">04</span>
+          <span class="tab-text">
+            <strong>CSV Column Mapping</strong>
+            <small>18 standard appraisal fields</small>
+          </span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="section-subdivision">
+          <span class="tab-idx">05</span>
+          <span class="tab-text">
+            <strong>Subdivision Matching</strong>
+            <small>Noise words &amp; confirmed aliases</small>
+          </span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="section-severities">
+          <span class="tab-idx">06</span>
+          <span class="tab-text">
+            <strong>Statuses &amp; Severities</strong>
+            <small>MLS codes, dates &amp; flags</small>
+          </span>
+        </button>
+        <div class="sidebar-divider"></div>
+        <button type="button" class="tab-btn" data-tab="all">
+          <span class="tab-idx">ALL</span>
+          <span class="tab-text">
+            <strong>Show All Sections</strong>
+            <small>Single-page view</small>
+          </span>
+        </button>
       </div>
     </aside>
 
-    <!-- Main configuration panels -->
-    <div class="config-sections">
+    <!-- Right Studio Content Area -->
+    <div class="studio-panels">
 
       <!-- 01. FILTERING THRESHOLDS -->
-      <section class="panel config-section" id="section-filters">
-        <div class="panel-header">
-          <span class="step-num">01</span>
-          <div>
-            <h2>Baseline Filtering Thresholds</h2>
-            <p class="hint">Hard eligibility criteria applied to every candidate before ranking. Stored in <code>settings.yaml → filters</code>.</p>
+      <section class="studio-card config-section active-tab" id="section-filters">
+        <div class="studio-card-head">
+          <div class="studio-title-wrap">
+            <span class="step-pill">MODULE 01</span>
+            <div>
+              <h2>Baseline Filtering Thresholds</h2>
+              <p class="hint">Hard eligibility criteria applied to every candidate before ranking (<code>settings.yaml → filters</code>).</p>
+            </div>
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Size, Distance &amp; Sale Window</div>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">A</span>
+            <span>Bracket Tolerances, Distance &amp; Sale Lookback Window</span>
+          </div>
           <div class="grid-fields">
             {% include "field.html" with field=form.gla_bracket_pct %}
             {% include "field.html" with field=form.lot_bracket_pct %}
@@ -69,8 +126,11 @@
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Subdivision Requirement &amp; Missing Data Handling</div>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">B</span>
+            <span>Subdivision Enforcement &amp; Missing Field Policies</span>
+          </div>
           <div class="grid-fields">
             {% include "field.html" with field=form.require_subdivision_match %}
             {% include "field.html" with field=form.subdivision_min_score %}
@@ -81,27 +141,35 @@
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Required Property Features</div>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">C</span>
+            <span>Required Property Features</span>
+          </div>
           <div class="grid-fields">
             {% include "field.html" with field=form.required_features wide=True %}
-            <small class="hint wide">Optional exact-match requirements (one <code>field_name = value</code> per line, e.g. <code>foundation_type = Crawl Space</code>). Leave blank when no extra feature filter is needed.</small>
+            <small class="hint wide">Optional exact-match requirements (one <code>field_name = value</code> per line, e.g. <code>foundation_type = Crawl Space</code>).</small>
           </div>
         </div>
       </section>
 
       <!-- 02. SHORTLIST & AUTO-RELAXATION -->
-      <section class="panel config-section" id="section-escalation">
-        <div class="panel-header">
-          <span class="step-num">02</span>
-          <div>
-            <h2>Shortlist Sizes &amp; Automatic Rule Relaxation</h2>
-            <p class="hint">Controls how many candidates enter the shortlist and how rules loosen when fewer than the minimum sold comps pass.</p>
+      <section class="studio-card config-section" id="section-escalation">
+        <div class="studio-card-head">
+          <div class="studio-title-wrap">
+            <span class="step-pill">MODULE 02</span>
+            <div>
+              <h2>Shortlist Capacities &amp; Auto-Relaxation Steps</h2>
+              <p class="hint">Controls shortlist pool sizes and cumulative rule relaxation when sold candidates fall below minimum.</p>
+            </div>
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Pool Capacities &amp; Output Path</div>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">A</span>
+            <span>Pool Capacities &amp; Output Directory</span>
+          </div>
           <div class="grid-fields">
             {% include "field.html" with field=form.shortlist_size %}
             {% include "field.html" with field=form.min_shortlist_size %}
@@ -110,11 +178,15 @@
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Cumulative Relaxation Sequence (Escalation Steps)</div>
-          <p class="hint" style="margin-bottom:.75rem;">Applied one step at a time, cumulatively, while sold candidates are below the minimum threshold.</p>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">B</span>
+            <span>Visual Relaxation Sequence Builder (Escalation Steps)</span>
+          </div>
+          <p class="hint" style="margin-bottom:.75rem;">When fewer than <strong>min_shortlist_size</strong> sold comps pass baseline rules, these steps are applied one by one, cumulatively:</p>
 
-          <!-- Quick Add Step Helper -->
+          <div id="visual-steps-list" class="visual-steps-list"></div>
+
           <div class="step-builder-bar">
             <select id="step-key-select" aria-label="Rule to relax">
               <option value="max_distance_miles">Max distance (miles)</option>
@@ -122,55 +194,64 @@
               <option value="lot_bracket_pct">Lot size bracket (± %)</option>
               <option value="sale_date_max_months">Sold within (months)</option>
             </select>
-            <input type="number" id="step-val-input" step="any" value="4.0" aria-label="New threshold value" style="max-width:120px;">
-            <button type="button" class="btn-outline btn-sm" id="add-step-btn">+ Append Step</button>
+            <input type="number" id="step-val-input" step="any" value="4.0" aria-label="New threshold value" style="max-width:130px;">
+            <button type="button" class="btn-outline btn-sm" id="add-step-btn">+ Add Relaxation Step</button>
           </div>
 
           <div class="grid-fields">
             {% include "field.html" with field=form.escalation wide=True %}
-            <small class="hint wide">One relaxation step per line (e.g. <code>max_distance_miles = 4.0</code>). Multiple overrides in the same step can be separated by commas.</small>
           </div>
         </div>
       </section>
 
       <!-- 03. RANKING & FINAL SELECTION -->
-      <section class="panel config-section" id="section-ranking">
-        <div class="panel-header">
-          <span class="step-num">03</span>
-          <div>
-            <h2>Multi-Criteria Ranking &amp; Final Selection</h2>
-            <p class="hint">Configures the final pick count, subject bracketing attributes, ranking priority order, and tie-breaking tolerance bands.</p>
+      <section class="studio-card config-section" id="section-ranking">
+        <div class="studio-card-head">
+          <div class="studio-title-wrap">
+            <span class="step-pill">MODULE 03</span>
+            <div>
+              <h2>Multi-Criteria Ranking &amp; Subject Bracketing</h2>
+              <p class="hint">Configures final pick counts, subject bracketing attributes, priority hierarchy, and tie-breaking tolerance bands.</p>
+            </div>
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Final Appraisal Grid Selection &amp; Bracketing</div>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">A</span>
+            <span>Final Appraisal Grid Picks &amp; Bracketing Rules</span>
+          </div>
           <div class="grid-fields">
             {% include "field.html" with field=form.sold_count %}
             {% include "field.html" with field=form.listing_count %}
             <div class="field wide">
               <span class="label">{{ form.bracket_attributes.label }}</span>
               <div class="chips">{% for box in form.bracket_attributes %}<label class="chip">{{ box.tag }}<span>{{ box.choice_label }}</span></label>{% endfor %}</div>
-              <small class="hint">The pipeline requires at least one final pick above and one below the subject for each checked attribute, swapping candidates from the shortlist if needed.</small>
+              <small class="hint">Requires at least one final pick above and one below the subject for each selected attribute.</small>
             </div>
             {% include "field.html" with field=form.equal_counts_as_bracketed wide=True %}
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Ranking Priority Order</div>
-          <p class="hint" style="margin-bottom:.6rem;">Use the arrows to reorder priority, or edit the comma-separated list directly.</p>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">B</span>
+            <span>7-Key Ranking Priority Hierarchy</span>
+          </div>
+          <p class="hint" style="margin-bottom:.65rem;">Click ↑ / ↓ to adjust the priority order used to rank both Sold and Listing pools:</p>
           <ul class="hierarchy-builder" id="hierarchy-builder"></ul>
           <div class="grid-fields">
             {% include "field.html" with field=form.hierarchy wide=True %}
-            <small class="hint wide">Must contain all 7 keys: <code>subdivision, distance, gla, age, lot, beds, baths</code>.</small>
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Tolerance Bands (Tie Thresholds)</div>
-          <p class="hint" style="margin-bottom:.75rem;">Comps whose difference from the subject falls in the same tolerance bucket count as a tie on that attribute, allowing the next priority key to decide.</p>
-          <div class="grid-fields">
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">C</span>
+            <span>Tie-Breaking Tolerance Bands</span>
+          </div>
+          <p class="hint" style="margin-bottom:.75rem;">Differences within the same tolerance band count as a tie on that attribute, passing the decision to the next priority key.</p>
+          <div class="grid-fields grid-3">
             {% include "field.html" with field=form.band_distance_miles %}
             {% include "field.html" with field=form.band_gla_pct %}
             {% include "field.html" with field=form.band_age_years %}
@@ -182,77 +263,98 @@
       </section>
 
       <!-- 04. CSV COLUMN MAPPING -->
-      <section class="panel config-section" id="section-mapping">
-        <div class="panel-header">
-          <span class="step-num">04</span>
-          <div>
-            <h2>CSV Column Header Mapping</h2>
-            <p class="hint">Stored in <code>config/column_mapping.yaml</code>. For each standard field, list candidate CSV column headers separated by commas (case-insensitive; first match wins).</p>
+      <section class="studio-card config-section" id="section-mapping">
+        <div class="studio-card-head">
+          <div class="studio-title-wrap">
+            <span class="step-pill">MODULE 04</span>
+            <div>
+              <h2>CSV Column Header Mapping</h2>
+              <p class="hint">Stored in <code>config/column_mapping.yaml</code>. Matches candidate CSV headers (case-insensitive; first match wins) to each standard field.</p>
+            </div>
+          </div>
+          <div class="card-head-tools">
+            <input type="search" id="mapping-search" placeholder="Filter 18 fields..." class="search-input" aria-label="Filter column mappings">
           </div>
         </div>
 
-        <div class="mapping-table-wrap">
-          <table class="plain mapping-table">
-            <thead>
-              <tr>
-                <th style="width:240px;">Standard Field</th>
-                <th>Accepted CSV Column Names (comma-separated)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in form.mapping_rows %}
-              <tr>
-                <td>
-                  <strong class="map-title">{{ row.title }}</strong>
-                  <code class="map-code">{{ row.code }}</code>
-                  <span class="hint">{{ row.desc }}</span>
-                </td>
-                <td>
-                  <div class="field{% if row.field.errors %} has-error{% endif %}">
-                    {{ row.field }}
-                    {% for e in row.field.errors %}<p class="error">{{ e }}</p>{% endfor %}
-                  </div>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="mapping-cards-grid" id="mapping-cards-grid">
+          {% for row in form.mapping_rows %}
+          <div class="mapping-row-card" data-search="{{ row.title|lower }} {{ row.code|lower }} {{ row.desc|lower }}">
+            <div class="mapping-row-meta">
+              <div class="mapping-row-title">
+                <strong>{{ row.title }}</strong>
+                <code class="map-code">{{ row.code }}</code>
+              </div>
+              <span class="hint">{{ row.desc }}</span>
+            </div>
+            <div class="mapping-row-input">
+              <div class="field{% if row.field.errors %} has-error{% endif %}">
+                {{ row.field }}
+                {% for e in row.field.errors %}<p class="error">{{ e }}</p>{% endfor %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
         </div>
       </section>
 
       <!-- 05. SUBDIVISION MATCHING & ALIASES -->
-      <section class="panel config-section" id="section-subdivision">
-        <div class="panel-header">
-          <span class="step-num">05</span>
-          <div>
-            <h2>Subdivision Normalization &amp; Aliases</h2>
-            <p class="hint">Stored in <code>settings.yaml → matching</code> and <code>config/subdivision_aliases.yaml</code>. Controls how legal and marketing subdivision names are equated.</p>
+      <section class="studio-card config-section" id="section-subdivision">
+        <div class="studio-card-head">
+          <div class="studio-title-wrap">
+            <span class="step-pill">MODULE 05</span>
+            <div>
+              <h2>Subdivision Normalization &amp; Aliases</h2>
+              <p class="hint">Stored in <code>settings.yaml → matching</code> and <code>config/subdivision_aliases.yaml</code>.</p>
+            </div>
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Noise Words &amp; Confirmed Aliases</div>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">A</span>
+            <span>Ignored Subdivision Noise Words</span>
+          </div>
           <div class="grid-fields">
             {% include "field.html" with field=form.noise_words wide=True %}
             <small class="hint wide">Words stripped before comparing subdivision names (e.g. <code>SUBDIVISION, SUBD, SUB, ADDN, ADDITION</code>).</small>
+          </div>
+        </div>
+
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">B</span>
+            <span>Confirmed Subdivision Aliases (Tier 1 Overrides)</span>
+          </div>
+          <div class="step-builder-bar">
+            <input type="text" id="alias-canon-input" placeholder="Canonical Name (e.g. BRUSHY CREEK PHASE 2)" style="flex:1;">
+            <input type="text" id="alias-variants-input" placeholder="Aliases (e.g. BC PHASE 2, BRUSHYCREEK 2)" style="flex:1;">
+            <button type="button" class="btn-outline btn-sm" id="add-alias-btn">+ Add Alias Rule</button>
+          </div>
+          <div class="grid-fields">
             {% include "field.html" with field=form.subdivision_aliases wide=True %}
-            <small class="hint wide">One canonical subdivision per line: <code>CANONICAL NAME = Variant 1, Variant 2</code>. Matches here are treated as Tier 1 confirmed matches.</small>
+            <small class="hint wide">Format: <code>CANONICAL NAME = Variant 1, Variant 2</code> (one canonical group per line).</small>
           </div>
         </div>
       </section>
 
       <!-- 06. STATUSES, DATES & FLAG SEVERITIES -->
-      <section class="panel config-section" id="section-severities">
-        <div class="panel-header">
-          <span class="step-num">06</span>
-          <div>
-            <h2>MLS Status Codes, Date Formats &amp; Flag Severities</h2>
-            <p class="hint">Controls how MLS statuses are routed into pools, how dates are parsed, and the severity assigned to each diagnostic flag.</p>
+      <section class="studio-card config-section" id="section-severities">
+        <div class="studio-card-head">
+          <div class="studio-title-wrap">
+            <span class="step-pill">MODULE 06</span>
+            <div>
+              <h2>MLS Status Codes, Date Formats &amp; Flag Severities</h2>
+              <p class="hint">Controls how MLS statuses route into Sold vs. Listing pools, how dates parse, and the severity of each diagnostic flag.</p>
+            </div>
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Status Pools &amp; Date Parsing</div>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">A</span>
+            <span>MLS Status Routing &amp; Date Parsing Formats</span>
+          </div>
           <div class="grid-fields">
             {% include "field.html" with field=form.status_sold wide=True %}
             {% include "field.html" with field=form.status_listing wide=True %}
@@ -261,35 +363,29 @@
           </div>
         </div>
 
-        <div class="form-group-box">
-          <div class="group-title">Diagnostic Flag Severities</div>
-          <p class="hint" style="margin-bottom:.75rem;">Any <code>BLOCKING</code> flag marks the run as blocked (exit code 2). <code>REVIEW</code> highlights items for appraiser inspection.</p>
-          <div class="mapping-table-wrap">
-            <table class="plain mapping-table">
-              <thead>
-                <tr>
-                  <th>Flag Reason</th>
-                  <th style="width:180px;">Severity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in form.severity_rows %}
-                <tr>
-                  <td>
-                    <strong class="map-title">{{ row.title }}</strong>
-                    <code class="map-code">{{ row.code }}</code>
-                    <span class="hint">{{ row.desc }}</span>
-                  </td>
-                  <td>
-                    <div class="field{% if row.field.errors %} has-error{% endif %}">
-                      {{ row.field }}
-                      {% for e in row.field.errors %}<p class="error">{{ e }}</p>{% endfor %}
-                    </div>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+        <div class="sub-box">
+          <div class="sub-box-head">
+            <span class="sub-box-num">B</span>
+            <span>Diagnostic Flag Severities</span>
+          </div>
+          <div class="mapping-cards-grid">
+            {% for row in form.severity_rows %}
+            <div class="mapping-row-card sev-row-card">
+              <div class="mapping-row-meta">
+                <div class="mapping-row-title">
+                  <strong>{{ row.title }}</strong>
+                  <code class="map-code">{{ row.code }}</code>
+                </div>
+                <span class="hint">{{ row.desc }}</span>
+              </div>
+              <div class="sev-row-input">
+                <div class="field{% if row.field.errors %} has-error{% endif %}">
+                  {{ row.field }}
+                  {% for e in row.field.errors %}<p class="error">{{ e }}</p>{% endfor %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
           </div>
         </div>
       </section>
@@ -297,28 +393,99 @@
     </div>
   </div>
 
-  <div class="submit-bar">
-    <span class="hint" style="margin:0;">Changes apply to all future pipeline runs and are backed up automatically.</span>
-    <button type="submit" class="primary">Save All Configurations</button>
+  <div class="command-bar">
+    <div class="command-bar-info">
+      <span class="status-dot-dark"></span>
+      <span>Changes update <code>settings.yaml</code>, <code>column_mapping.yaml</code>, and <code>subdivision_aliases.yaml</code></span>
+    </div>
+    <div class="command-bar-actions">
+      <a href="{% url 'new_run' %}" class="btn-outline">Cancel</a>
+      <button type="submit" class="primary btn-lg">Save All Configurations</button>
+    </div>
   </div>
 </form>
 
 <script>
   (function () {
-    // 1. Escalation Step Builder Helper
+    // 1. Studio Sidebar Tab Switching (plus hash support)
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const sections = document.querySelectorAll('.config-section');
+
+    function activateTab(targetId) {
+      tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === targetId));
+      sections.forEach(sec => {
+        if (targetId === 'all' || sec.id === targetId) {
+          sec.classList.add('active-tab');
+        } else {
+          sec.classList.remove('active-tab');
+        }
+      });
+    }
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', function () {
+        activateTab(this.dataset.tab);
+      });
+    });
+
+    // If URL has a hash or if any hidden tab has form errors, show appropriately
+    if (document.querySelector('.has-error')) {
+      activateTab('all');
+    } else if (window.location.hash) {
+      const h = window.location.hash.replace('#', '');
+      if (document.getElementById(h)) activateTab(h);
+    }
+
+    // 2. Visual Escalation Steps Builder
     const addBtn = document.getElementById('add-step-btn');
     const keySelect = document.getElementById('step-key-select');
     const valInput = document.getElementById('step-val-input');
     const escTextarea = document.getElementById('id_escalation');
+    const visualSteps = document.getElementById('visual-steps-list');
+
+    const STEP_NAMES = {
+      max_distance_miles: 'Max Distance (miles)',
+      gla_bracket_pct: 'Living Area Bracket (±%)',
+      lot_bracket_pct: 'Lot Size Bracket (±%)',
+      sale_date_max_months: 'Sale Lookback (months)'
+    };
+
+    function renderVisualSteps() {
+      if (!escTextarea || !visualSteps) return;
+      const lines = escTextarea.value.split('\n').map(s => s.trim()).filter(Boolean);
+      visualSteps.innerHTML = '';
+      lines.forEach((line, idx) => {
+        const card = document.createElement('div');
+        card.className = 'vstep-card';
+        const formatted = line.split(',').map(part => {
+          const [k, v] = part.split('=').map(s => s ? s.trim() : '');
+          return '<strong>' + (STEP_NAMES[k] || k) + '</strong> → <code>' + (v || '') + '</code>';
+        }).join(' · ');
+        card.innerHTML =
+          '<span class="vstep-num">Step ' + (idx + 1) + '</span>' +
+          '<span class="vstep-body">' + formatted + '</span>' +
+          '<button type="button" class="btn-icon" title="Remove step">×</button>';
+        card.querySelector('button').addEventListener('click', function () {
+          lines.splice(idx, 1);
+          escTextarea.value = lines.join('\n');
+          renderVisualSteps();
+        });
+        visualSteps.appendChild(card);
+      });
+    }
+
     if (addBtn && keySelect && valInput && escTextarea) {
       addBtn.addEventListener('click', function () {
         const line = keySelect.value + ' = ' + valInput.value.trim();
         const cur = escTextarea.value.trim();
         escTextarea.value = cur ? (cur + '\n' + line) : line;
+        renderVisualSteps();
       });
+      escTextarea.addEventListener('input', renderVisualSteps);
+      renderVisualSteps();
     }
 
-    // 2. Interactive Hierarchy Reorder Widget
+    // 3. Interactive Hierarchy Reorder Widget
     const hInput = document.getElementById('id_hierarchy');
     const hList = document.getElementById('hierarchy-builder');
     const LABELS = {
@@ -339,7 +506,7 @@
         const li = document.createElement('li');
         li.className = 'hierarchy-item';
         li.innerHTML =
-          '<span class="h-rank">' + (idx + 1) + '</span>' +
+          '<span class="h-rank">0' + (idx + 1) + '</span>' +
           '<strong class="h-name">' + (LABELS[key] || key) + '</strong>' +
           '<code class="h-code">' + key + '</code>' +
           '<span class="h-controls">' +
@@ -365,7 +532,34 @@
       hInput.addEventListener('input', renderHierarchy);
       renderHierarchy();
     }
+
+    // 4. Column Mapping Search Filter
+    const searchInput = document.getElementById('mapping-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase();
+        document.querySelectorAll('#mapping-cards-grid .mapping-row-card').forEach(card => {
+          const match = !q || (card.dataset.search || '').includes(q);
+          card.style.display = match ? '' : 'none';
+        });
+      });
+    }
+
+    // 5. Quick Add Subdivision Alias
+    const aliasBtn = document.getElementById('add-alias-btn');
+    const canonIn = document.getElementById('alias-canon-input');
+    const varIn = document.getElementById('alias-variants-input');
+    const aliasArea = document.getElementById('id_subdivision_aliases');
+    if (aliasBtn && canonIn && varIn && aliasArea) {
+      aliasBtn.addEventListener('click', function () {
+        if (!canonIn.value.trim() || !varIn.value.trim()) return;
+        const line = canonIn.value.trim() + ' = ' + varIn.value.trim();
+        const cur = aliasArea.value.trim();
+        aliasArea.value = cur ? (cur + '\n' + line) : line;
+        canonIn.value = '';
+        varIn.value = '';
+      });
+    }
   })();
 </script>
 {% endblock %}
-

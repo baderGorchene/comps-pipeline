@@ -2,15 +2,22 @@
 {% block title %}{{ subject.address|default:run_id }} | Comps Shortlist{% endblock %}
 {% block content %}
 <div class="results">
-  <div class="page-head">
-    <div class="intro">
-      <span class="eyebrow">SHORTLIST REPORT · RUN {{ run_id }}</span>
-      <h1>{{ subject.address|default:"Subject" }}</h1>
-      <p class="meta">Source: <code>{{ input_name }}</code> · Effective date: <strong>{{ subject.effective_date }}</strong> · Subdivision: <strong>{{ subject.subdivision|default:"—" }}</strong></p>
+  <div class="workspace-hero">
+    <div class="hero-left">
+      <div class="eyebrow-row">
+        <span class="badge-mono">RUN {{ run_id }}</span>
+        <span class="eyebrow-sep">/</span>
+        <span class="eyebrow-text">{{ input_name }} · EFFECTIVE {{ subject.effective_date }}</span>
+      </div>
+      <h1>{{ subject.address|default:"Subject Property" }}</h1>
+      <p class="hero-sub">Subdivision: <strong>{{ subject.subdivision|default:"—" }}</strong> · Living Area: <strong>{{ subject.living_area|default:"—" }} sq ft</strong> · Year Built: <strong>{{ subject.year_built|default:"—" }}</strong></p>
     </div>
-    <div class="head-actions">
+    <div class="hero-right">
       {% if "final_selection.csv" in downloads %}
-        <a href="{% url 'download' run_id 'final_selection.csv' %}" class="primary" style="text-decoration:none;">Download Final Grid (.csv)</a>
+        <a href="{% url 'download' run_id 'final_selection.csv' %}" class="primary btn-lg" style="text-decoration:none;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Export Final Grid (.csv)</span>
+        </a>
       {% endif %}
       <a href="{% url 'new_run' %}" class="btn-outline">+ New Run</a>
     </div>
@@ -18,54 +25,71 @@
 
   {% if blocking %}
     <div class="alert alert-block" role="alert">
-      <strong>Not enough comps.</strong>
+      <div class="alert-title">
+        <strong>Not enough comps.</strong>
+      </div>
       {% for f in blocking %}<p>{{ f.message }}</p>{% endfor %}
     </div>
   {% elif gaps %}
     <div class="alert alert-review" role="status">
-      <strong>The subject is not bracketed on {{ gaps|join:", " }}.</strong>
-      <p>No shortlisted comp could fill the gap. Check the shortlist below or widen the rules.</p>
+      <div class="alert-title">
+        <strong>The subject is not bracketed on {{ gaps|join:", " }}.</strong>
+      </div>
+      <p>No shortlisted comp could fill the gap. Check the shortlist below or widen the rules in Configuration.</p>
     </div>
   {% else %}
     <div class="alert alert-ok" role="status">
-      <strong>Bracketed on every attribute.</strong>
+      <div class="alert-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <strong>Bracketed on every attribute.</strong>
+      </div>
       <p>{{ final_count }} comps picked. {{ review_count }} item{{ review_count|pluralize }} flagged for review.</p>
     </div>
   {% endif %}
 
-  <!-- Visual Pipeline Funnel Strip -->
+  <!-- Executive Pipeline Funnel Strip -->
   <section class="funnel-strip" aria-label="Pipeline funnel">
     <div class="funnel-stage">
+      <span class="funnel-step">STAGE 01</span>
       <span class="funnel-num">{{ counts.input_rows }}</span>
-      <span class="funnel-label">1. CSV Rows Read</span>
+      <span class="funnel-label">CSV Rows Read</span>
     </div>
     <div class="funnel-arrow">→</div>
     <div class="funnel-stage">
+      <span class="funnel-step">STAGE 02</span>
       <span class="funnel-num">{{ counts.after_clean }}</span>
-      <span class="funnel-label">2. Validated &amp; Cleaned</span>
+      <span class="funnel-label">Cleaned &amp; Valid</span>
     </div>
     <div class="funnel-arrow">→</div>
     <div class="funnel-stage">
+      <span class="funnel-step">STAGE 03–04</span>
       <span class="funnel-num">{{ counts.after_hard_filters }}</span>
-      <span class="funnel-label">3. Passed Filters</span>
+      <span class="funnel-label">Passed Filters</span>
     </div>
     <div class="funnel-arrow">→</div>
     <div class="funnel-stage">
+      <span class="funnel-step">STAGE 05</span>
       <span class="funnel-num">{{ counts.shortlist_sold }} + {{ counts.shortlist_listing }}</span>
-      <span class="funnel-label">4. Ranked Shortlist</span>
+      <span class="funnel-label">Ranked Shortlist</span>
     </div>
     <div class="funnel-arrow">→</div>
     <div class="funnel-stage funnel-final">
+      <span class="funnel-step">STAGE 06</span>
       <span class="funnel-num">{{ final_count }}</span>
-      <span class="funnel-label">5. Final Selection</span>
+      <span class="funnel-label">Final Selection</span>
     </div>
   </section>
 
   <!-- Final Selection Appraisal Grid -->
-  <section class="panel grid-panel">
-    <div class="section-bar">
-      <h2>Final selection</h2>
-      <span class="hint">▲ above the subject · ▼ below · = equal. A row is bracketed when at least one comp sits on each side.</span>
+  <section class="studio-card grid-panel">
+    <div class="studio-card-head">
+      <div class="studio-title-wrap">
+        <span class="step-pill">APPRAISAL GRID</span>
+        <div>
+          <h2>Final selection</h2>
+          <p class="hint">▲ above the subject · ▼ below · = equal. A row is bracketed when at least one comp sits on each side.</p>
+        </div>
+      </div>
     </div>
     {% if grid.columns %}
     <div class="table-scroll">
@@ -113,13 +137,15 @@
   </section>
 
   <!-- Under the Hood: Visual Step-by-Step Pipeline Execution (No Raw Logs) -->
-  <section class="panel trace-panel">
-    <div class="section-bar">
-      <div>
-        <span class="eyebrow">UNDER THE HOOD</span>
-        <h2>How the rules were applied — Step by Step</h2>
+  <section class="studio-card trace-panel">
+    <div class="studio-card-head">
+      <div class="studio-title-wrap">
+        <span class="step-pill">UNDER THE HOOD</span>
+        <div>
+          <h2>How the rules were applied — Step by Step</h2>
+          <p class="hint">Visual breakdown of every stage executed under the hood without log clutter.</p>
+        </div>
       </div>
-      <span class="hint">Every stage executed deterministically without hidden heuristics.</span>
     </div>
 
     <div class="trace-grid">
@@ -136,7 +162,7 @@
 
         {% if stage.mapped_cols %}
         <details class="trace-sub">
-          <summary>View {{ stage.mapped_cols|length }} matched CSV columns</summary>
+          <summary>Inspect {{ stage.mapped_cols|length }} matched CSV column headers</summary>
           <div class="col-map-chips">
             {% for label, csv_col in stage.mapped_cols %}
               <span class="map-chip"><strong>{{ label }}:</strong> {{ csv_col }}</span>
@@ -215,7 +241,7 @@
               </ul>
             </div>
           {% else %}
-            <p class="hint" style="margin-top:.5rem;">Top-ranked candidates satisfied bracketing without requiring any swaps.</p>
+            <p class="hint" style="margin-top:.35rem;">Top-ranked candidates satisfied bracketing without requiring any swaps.</p>
           {% endif %}
         {% endif %}
       </div>
@@ -223,20 +249,35 @@
     </div>
   </section>
 
-  <!-- Shortlist Tables -->
-  <section class="panel">
-    <h2>Sold shortlist <span class="count">{{ sold|length }}</span></h2>
+  <!-- Shortlist & Diagnostics Tables -->
+  <section class="studio-card">
+    <div class="studio-card-head">
+      <div class="studio-title-wrap">
+        <span class="step-pill">SOLD POOL</span>
+        <div>
+          <h2>Sold shortlist <span class="count">{{ sold|length }}</span></h2>
+          <p class="hint">Ranked sold candidates passing all active filter thresholds.</p>
+        </div>
+      </div>
+    </div>
     {% include "comp_table.html" with rows=sold %}
   </section>
 
-  <section class="panel">
-    <h2>Active, option and pending <span class="count">{{ listings|length }}</span></h2>
+  <section class="studio-card">
+    <div class="studio-card-head">
+      <div class="studio-title-wrap">
+        <span class="step-pill">LISTING POOL</span>
+        <div>
+          <h2>Active, option and pending <span class="count">{{ listings|length }}</span></h2>
+          <p class="hint">Ranked active, option, and pending listings.</p>
+        </div>
+      </div>
+    </div>
     {% include "comp_table.html" with rows=listings %}
   </section>
 
-  <!-- Diagnostic Flags -->
-  <details class="panel">
-    <summary><h2>Flags &amp; Notices <span class="count">{{ flags|length }}</span></h2></summary>
+  <details class="studio-card collapsible-card">
+    <summary><h2>Flags &amp; Diagnostic Notices <span class="count">{{ flags|length }}</span></h2></summary>
     <div class="table-scroll">
       <table class="plain">
         <thead><tr><th>Severity</th><th>Reason</th><th>MLS #</th><th>Message</th></tr></thead>
@@ -249,8 +290,7 @@
     </div>
   </details>
 
-  <!-- Excluded Rows -->
-  <details class="panel">
+  <details class="studio-card collapsible-card">
     <summary><h2>Excluded rows <span class="count">{{ excluded|length }}</span></h2></summary>
     <div class="table-scroll">
       <table class="plain">
@@ -264,10 +304,16 @@
     </div>
   </details>
 
-  <!-- Exported Run Files -->
-  <section class="panel exports-panel">
-    <h2>Exported Run Files</h2>
-    <p class="counts">{{ counts.input_rows }} rows read · {{ counts.after_clean }} usable · {{ counts.after_hard_filters }} passed filters · {{ counts.excluded }} excluded.</p>
+  <section class="studio-card exports-panel">
+    <div class="studio-card-head" style="margin-bottom:.75rem;padding-bottom:.75rem;">
+      <div class="studio-title-wrap">
+        <span class="step-pill">ARTIFACTS</span>
+        <div>
+          <h2>Exported Run Files</h2>
+          <p class="hint">{{ counts.input_rows }} rows read · {{ counts.after_clean }} usable · {{ counts.after_hard_filters }} passed filters · {{ counts.excluded }} excluded.</p>
+        </div>
+      </div>
+    </div>
     <ul class="downloads">
       {% for name in downloads %}<li><a href="{% url 'download' run_id name %}" class="download-chip">↓ {{ name }}</a></li>{% endfor %}
     </ul>

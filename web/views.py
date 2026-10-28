@@ -156,8 +156,14 @@ def new_run(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         inputs = InputsForm(request.POST, request.FILES)
         subject_form = SubjectForm(request.POST)
-        if "gla_bracket_pct" in request.POST:
-            rules = RulesForm(request.POST)
+        rule_keys = set(RulesForm.base_fields) & set(request.POST.keys())
+        if rule_keys:
+            merged = RulesForm.initial_from(cfg)
+            for k in rule_keys:
+                merged[k] = (
+                    request.POST.getlist(k) if k == "bracket_attributes" else request.POST[k]
+                )
+            rules = RulesForm(merged)
         else:
             rules = RulesForm(RulesForm.initial_from(cfg))
         subject_ok = inputs.data.get("subject_source") == "yaml" or subject_form.is_valid()
@@ -187,6 +193,9 @@ def new_run(request: HttpRequest) -> HttpResponse:
                 errors.append(str(e))
             except ValidationError as e:
                 errors.append(f"The subject is not valid:\n{e}")
+        else:
+            for field_errs in rules.errors.values():
+                errors.extend(field_errs)
     else:
         inputs = InputsForm()
         subject_form = SubjectForm(initial=_subject_initial())

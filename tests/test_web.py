@@ -74,8 +74,12 @@ def test_form_page_loads_with_defaults(client):
     page = client.get("/")
     assert page.status_code == 200
     html = page.content.decode()
-    assert "Build shortlist" in html and 'value="25"' in html
-    assert "max_distance_miles = 4.0" in html  # escalation steps from settings.yaml
+    assert "Build shortlist" in html and "±25%" in html
+    assert 'name="gla_bracket_pct"' not in html  # config is separated from the main page
+
+    cfg_page = client.get("/config/").content.decode()
+    assert 'value="25"' in cfg_page
+    assert "max_distance_miles = 4.0" in cfg_page  # escalation steps from settings.yaml
 
 
 def test_run_from_form_then_results_history_download(client):
