@@ -1,10 +1,19 @@
 {% extends "base.html" %}
-{% block title %}{{ subject.address|default:run_id }} | Comps shortlist{% endblock %}
+{% block title %}{{ subject.address|default:run_id }} | Comps Shortlist{% endblock %}
 {% block content %}
 <div class="results">
-  <div class="intro">
-    <h1>{{ subject.address|default:"Subject" }}</h1>
-    <p class="meta">Run {{ run_id }}, from {{ input_name }}, effective date {{ subject.effective_date }}</p>
+  <div class="page-head">
+    <div class="intro">
+      <span class="eyebrow">SHORTLIST REPORT · RUN {{ run_id }}</span>
+      <h1>{{ subject.address|default:"Subject" }}</h1>
+      <p class="meta">Source: <code>{{ input_name }}</code> · Effective date: <strong>{{ subject.effective_date }}</strong> · Subdivision: <strong>{{ subject.subdivision|default:"—" }}</strong></p>
+    </div>
+    <div class="head-actions">
+      {% if "final_selection.csv" in downloads %}
+        <a href="{% url 'download' run_id 'final_selection.csv' %}" class="primary" style="text-decoration:none;">Download Final Grid (.csv)</a>
+      {% endif %}
+      <a href="{% url 'new_run' %}" class="btn-outline">+ New Run</a>
+    </div>
   </div>
 
   {% if blocking %}
@@ -24,14 +33,46 @@
     </div>
   {% endif %}
 
+  <!-- Visual Pipeline Funnel Strip -->
+  <section class="funnel-strip" aria-label="Pipeline funnel">
+    <div class="funnel-stage">
+      <span class="funnel-num">{{ counts.input_rows }}</span>
+      <span class="funnel-label">1. CSV Rows Read</span>
+    </div>
+    <div class="funnel-arrow">→</div>
+    <div class="funnel-stage">
+      <span class="funnel-num">{{ counts.after_clean }}</span>
+      <span class="funnel-label">2. Validated &amp; Cleaned</span>
+    </div>
+    <div class="funnel-arrow">→</div>
+    <div class="funnel-stage">
+      <span class="funnel-num">{{ counts.after_hard_filters }}</span>
+      <span class="funnel-label">3. Passed Filters</span>
+    </div>
+    <div class="funnel-arrow">→</div>
+    <div class="funnel-stage">
+      <span class="funnel-num">{{ counts.shortlist_sold }} + {{ counts.shortlist_listing }}</span>
+      <span class="funnel-label">4. Ranked Shortlist</span>
+    </div>
+    <div class="funnel-arrow">→</div>
+    <div class="funnel-stage funnel-final">
+      <span class="funnel-num">{{ final_count }}</span>
+      <span class="funnel-label">5. Final Selection</span>
+    </div>
+  </section>
+
+  <!-- Final Selection Appraisal Grid -->
   <section class="panel grid-panel">
-    <h2>Final selection</h2>
+    <div class="section-bar">
+      <h2>Final selection</h2>
+      <span class="hint">▲ above the subject · ▼ below · = equal. A row is bracketed when at least one comp sits on each side.</span>
+    </div>
     {% if grid.columns %}
     <div class="table-scroll">
       <table class="compgrid">
         <thead>
           <tr>
-            <th scope="col" class="rowhead"></th>
+            <th scope="col" class="rowhead">Attribute</th>
             <th scope="col" class="subject-col">Subject</th>
             {% for col in grid.columns %}
               <th scope="col" class="{% if col.pool == 'listing' %}listing-col{% endif %}">
@@ -66,27 +107,123 @@
         </tbody>
       </table>
     </div>
-    <p class="hint">▲ above the subject, ▼ below. A row is bracketed when at least one comp sits on each side.</p>
     {% else %}
       <p>No comps passed the rules.</p>
     {% endif %}
   </section>
 
-  {% if steps %}
-  <section class="panel">
-    <h2>How the rules were applied</h2>
-    <ol class="steps">
-      {% for s in steps %}
-      <li class="{% if s.used %}used{% endif %}">
-        <span class="step-label">{{ s.label }}</span>
-        <span class="step-count">{{ s.sold }} sold, {{ s.listing }} listing{{ s.listing|pluralize }}</span>
-        {% if s.used %}<span class="tag">Used</span>{% elif not forloop.last %}<span class="step-note">fewer than {{ min_sold }} sold</span>{% endif %}
-      </li>
-      {% endfor %}
-    </ol>
-  </section>
-  {% endif %}
+  <!-- Under the Hood: Visual Step-by-Step Pipeline Execution (No Raw Logs) -->
+  <section class="panel trace-panel">
+    <div class="section-bar">
+      <div>
+        <span class="eyebrow">UNDER THE HOOD</span>
+        <h2>How the rules were applied — Step by Step</h2>
+      </div>
+      <span class="hint">Every stage executed deterministically without hidden heuristics.</span>
+    </div>
 
+    <div class="trace-grid">
+      {% for stage in pipeline_trace %}
+      <div class="trace-card">
+        <div class="trace-card-head">
+          <div class="trace-title-group">
+            <span class="step-num">0{{ stage.num }}</span>
+            <h3>{{ stage.title }}</h3>
+          </div>
+          <span class="trace-badge">{{ stage.badge }}</span>
+        </div>
+        <p class="trace-summary">{{ stage.summary }}</p>
+
+        {% if stage.mapped_cols %}
+        <details class="trace-sub">
+          <summary>View {{ stage.mapped_cols|length }} matched CSV columns</summary>
+          <div class="col-map-chips">
+            {% for label, csv_col in stage.mapped_cols %}
+              <span class="map-chip"><strong>{{ label }}:</strong> {{ csv_col }}</span>
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+
+        {% if stage.reasons %}
+        <ul class="trace-reasons">
+          {% for r in stage.reasons %}
+            <li><span>{{ r.label }}</span><strong>{{ r.count }} row{{ r.count|pluralize }}</strong></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if stage.bullets %}
+        <ul class="trace-bullets">
+          {% for b in stage.bullets %}
+            <li>{{ b }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if stage.steps %}
+        <div class="trace-box">
+          <div class="trace-box-title">Rule Relaxation Attempts</div>
+          <ol class="steps">
+            {% for s in stage.steps %}
+            <li class="{% if s.used %}used{% endif %}">
+              <span class="step-label">{{ s.label }}</span>
+              <span class="step-count">{{ s.sold }} sold, {{ s.listing }} listing{{ s.listing|pluralize }}</span>
+              {% if s.used %}<span class="tag">Used</span>{% elif not forloop.last %}<span class="step-note">fewer than {{ min_sold }} sold</span>{% endif %}
+            </li>
+            {% endfor %}
+          </ol>
+        </div>
+        {% endif %}
+
+        {% if stage.hf_reasons %}
+        <div class="trace-box">
+          <div class="trace-box-title">Rows Removed by Filter Rule</div>
+          <div class="filter-bars">
+            {% for r in stage.hf_reasons %}
+            <div class="filter-bar-row">
+              <div class="filter-bar-meta">
+                <span>{{ r.label }}</span>
+                <strong>{{ r.count }}</strong>
+              </div>
+              <div class="filter-bar-track"><div class="filter-bar-fill" style="width:{{ r.pct }}%;"></div></div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if stage.hierarchy %}
+        <div class="hierarchy-pills">
+          {% for h in stage.hierarchy %}
+            <span class="h-pill">
+              <strong>{{ h.order }}. {{ h.name }}</strong>
+              <small>{{ h.band }}</small>
+            </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if stage.num == 6 %}
+          {% if stage.swaps %}
+            <div class="trace-box">
+              <div class="trace-box-title">Automatic Bracketing Swaps Performed</div>
+              <ul class="trace-bullets">
+                {% for sw in stage.swaps %}
+                  <li>Replaced <code>{{ sw.removed }}</code> with <code>{{ sw.added }}</code>{% if sw.fixed %} to bracket <strong>{{ sw.fixed|join:", " }}</strong>{% endif %}.</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% else %}
+            <p class="hint" style="margin-top:.5rem;">Top-ranked candidates satisfied bracketing without requiring any swaps.</p>
+          {% endif %}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Shortlist Tables -->
   <section class="panel">
     <h2>Sold shortlist <span class="count">{{ sold|length }}</span></h2>
     {% include "comp_table.html" with rows=sold %}
@@ -97,20 +234,22 @@
     {% include "comp_table.html" with rows=listings %}
   </section>
 
+  <!-- Diagnostic Flags -->
   <details class="panel">
-    <summary><h2>Flags <span class="count">{{ flags|length }}</span></h2></summary>
+    <summary><h2>Flags &amp; Notices <span class="count">{{ flags|length }}</span></h2></summary>
     <div class="table-scroll">
       <table class="plain">
         <thead><tr><th>Severity</th><th>Reason</th><th>MLS #</th><th>Message</th></tr></thead>
         <tbody>
         {% for f in flags %}
-          <tr><td><span class="sev sev-{{ f.severity|lower }}">{{ f.severity|lower|capfirst }}</span></td><td>{{ f.reason }}</td><td>{{ f.mls_number|default:"" }}</td><td>{{ f.message }}</td></tr>
+          <tr><td><span class="sev sev-{{ f.severity|lower }}">{{ f.severity|lower|capfirst }}</span></td><td><code>{{ f.reason }}</code></td><td>{{ f.mls_number|default:"—" }}</td><td>{{ f.message }}</td></tr>
         {% endfor %}
         </tbody>
       </table>
     </div>
   </details>
 
+  <!-- Excluded Rows -->
   <details class="panel">
     <summary><h2>Excluded rows <span class="count">{{ excluded|length }}</span></h2></summary>
     <div class="table-scroll">
@@ -125,13 +264,13 @@
     </div>
   </details>
 
-  <details class="panel">
-    <summary><h2>Run log and files</h2></summary>
-    <p class="counts">{{ counts.input_rows }} rows read, {{ counts.after_clean }} usable, {{ counts.after_hard_filters }} passed the rules, {{ counts.excluded }} excluded.</p>
+  <!-- Exported Run Files -->
+  <section class="panel exports-panel">
+    <h2>Exported Run Files</h2>
+    <p class="counts">{{ counts.input_rows }} rows read · {{ counts.after_clean }} usable · {{ counts.after_hard_filters }} passed filters · {{ counts.excluded }} excluded.</p>
     <ul class="downloads">
-      {% for name in downloads %}<li><a href="{% url 'download' run_id name %}">{{ name }}</a></li>{% endfor %}
+      {% for name in downloads %}<li><a href="{% url 'download' run_id name %}" class="download-chip">↓ {{ name }}</a></li>{% endfor %}
     </ul>
-    {% if log %}<pre class="log">{{ log }}</pre>{% endif %}
-  </details>
+  </section>
 </div>
 {% endblock %}

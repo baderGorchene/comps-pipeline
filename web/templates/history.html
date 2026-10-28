@@ -1,24 +1,53 @@
 {% extends "base.html" %}
-{% block title %}Past runs | Comps shortlist{% endblock %}
+{% block title %}Past Runs | Comps Shortlist{% endblock %}
 {% block content %}
-<div class="intro">
-  <h1>Past runs</h1>
-  <p>Every run is kept in data/output, newest first.</p>
+<div class="page-head">
+  <div class="intro">
+    <span class="eyebrow">RUN ARCHIVE</span>
+    <h1>Past runs</h1>
+    <p>Every run is preserved with a full snapshot of its configuration, audit trail, and exported spreadsheets, newest first.</p>
+  </div>
+  <div class="head-actions">
+    <a href="{% url 'new_run' %}" class="primary" style="text-decoration:none;">+ New Run</a>
+  </div>
 </div>
+
 <section class="panel">
   {% if runs %}
   <div class="table-scroll">
     <table class="plain">
-      <thead><tr><th>Started</th><th>Subject</th><th>Export</th><th class="num">Picked</th><th>Rules</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>Started</th>
+          <th>Subject Property</th>
+          <th>MLS Export</th>
+          <th class="num">CSV Rows</th>
+          <th class="num">Passed</th>
+          <th class="num">Picked</th>
+          <th>Rules Applied</th>
+          <th>Status</th>
+        </tr>
+      </thead>
       <tbody>
         {% for r in runs %}
         <tr>
-          <td>{{ r.started }}</td>
-          <td><a href="{% url 'results' r.id %}">{{ r.address }}</a></td>
-          <td>{{ r.input }}</td>
-          <td class="num">{{ r.final }}</td>
+          <td class="mono">{{ r.started }}</td>
+          <td>
+            <a href="{% url 'results' r.id %}" class="subject-link">{{ r.address }}</a>
+            {% if r.subdivision %}<small class="hint" style="margin:0;">{{ r.subdivision }}</small>{% endif %}
+          </td>
+          <td><code>{{ r.input }}</code></td>
+          <td class="num">{{ r.input_rows }}</td>
+          <td class="num">{{ r.after_hf }}</td>
+          <td class="num"><strong>{{ r.final }}</strong></td>
           <td>{% if r.level %}Relaxed {{ r.level }} step{{ r.level|pluralize }}{% else %}As set{% endif %}</td>
-          <td>{% if r.blocked %}<span class="sev sev-blocking">Not enough comps</span>{% endif %}</td>
+          <td>
+            {% if r.blocked %}
+              <span class="sev sev-blocking">Not enough comps</span>
+            {% else %}
+              <span class="sev sev-ok">Complete</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>

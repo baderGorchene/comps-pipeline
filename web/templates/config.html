@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block title %}Configuration · Comps Shortlist{% endblock %}
+{% block content %}
+<form method="post" class="config-page" id="config-form" novalidate>
+  {% csrf_token %}
+  <div class="page-head">
+    <div class="intro">
+      <span class="eyebrow">SYSTEM CONFIGURATION</span>
+      <h1>Pipeline Rules &amp; Mappings</h1>
+      <p>Modify all business rules, tolerance bands, CSV header mappings, and subdivision aliases in one place. Changes write directly to <code>config/settings.yaml</code>, <code>config/column_mapping.yaml</code>, and <code>config/subdivision_aliases.yaml</code>.</p>
+    </div>
+    <div class="head-actions">
+      <a href="{% url 'new_run' %}" class="btn-outline">← Back to New Run</a>
+      <button type="submit" class="primary">Save All Configurations</button>
+    </div>
+  </div>
+
+  {% if saved %}
+    <div class="alert alert-ok" role="status">
+      <strong>Configuration saved.</strong>
+      <p>All changes have been validated and written to <code>config/settings.yaml</code>, <code>config/column_mapping.yaml</code>, and <code>config/subdivision_aliases.yaml</code> (previous versions backed up as <code>.yaml.bak</code>).</p>
+    </div>
+  {% endif %}
+
+  {% if errors or form.non_field_errors %}
+    <div class="alert alert-block" role="alert">
+      <strong>Configuration could not be saved.</strong>
+      {% for e in errors %}<pre>{{ e }}</pre>{% endfor %}
+      {{ form.non_field_errors }}
+    </div>
+  {% endif %}
+
+  <div class="config-layout">
+    <!-- Left sticky navigation -->
+    <aside class="config-nav" aria-label="Configuration sections">
+      <div class="config-nav-box">
+        <div class="nav-title">SECTIONS</div>
+        <a href="#section-filters" class="nav-item"><span>01</span> Filtering Thresholds</a>
+        <a href="#section-escalation" class="nav-item"><span>02</span> Shortlist &amp; Relaxation</a>
+        <a href="#section-ranking" class="nav-item"><span>03</span> Ranking &amp; Selection</a>
+        <a href="#section-mapping" class="nav-item"><span>04</span> CSV Column Mapping</a>
+        <a href="#section-subdivision" class="nav-item"><span>05</span> Subdivision Aliases</a>
+        <a href="#section-severities" class="nav-item"><span>06</span> Statuses &amp; Severities</a>
+      </div>
+    </aside>
+
+    <!-- Main configuration panels -->
+    <div class="config-sections">
+
+      <!-- 01. FILTERING THRESHOLDS -->
+      <section class="panel config-section" id="section-filters">
+        <div class="panel-header">
+          <span class="step-num">01</span>
+          <div>
+            <h2>Baseline Filtering Thresholds</h2>
+            <p class="hint">Hard eligibility criteria applied to every candidate before ranking. Stored in <code>settings.yaml → filters</code>.</p>
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Size, Distance &amp; Sale Window</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=form.gla_bracket_pct %}
+            {% include "field.html" with field=form.lot_bracket_pct %}
+            {% include "field.html" with field=form.gla_bracket_inclusive %}
+            {% include "field.html" with field=form.lot_bracket_inclusive %}
+            {% include "field.html" with field=form.max_distance_miles %}
+            {% include "field.html" with field=form.sale_date_max_months %}
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Subdivision Requirement &amp; Missing Data Handling</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=form.require_subdivision_match %}
+            {% include "field.html" with field=form.subdivision_min_score %}
+            {% include "field.html" with field=form.missing_gla %}
+            {% include "field.html" with field=form.missing_lot %}
+            {% include "field.html" with field=form.missing_distance %}
+            {% include "field.html" with field=form.missing_close_date %}
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Required Property Features</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=form.required_features wide=True %}
+            <small class="hint wide">Optional exact-match requirements (one <code>field_name = value</code> per line, e.g. <code>foundation_type = Crawl Space</code>). Leave blank when no extra feature filter is needed.</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- 02. SHORTLIST & AUTO-RELAXATION -->
+      <section class="panel config-section" id="section-escalation">
+        <div class="panel-header">
+          <span class="step-num">02</span>
+          <div>
+            <h2>Shortlist Sizes &amp; Automatic Rule Relaxation</h2>
+            <p class="hint">Controls how many candidates enter the shortlist and how rules loosen when fewer than the minimum sold comps pass.</p>
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Pool Capacities &amp; Output Path</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=form.shortlist_size %}
+            {% include "field.html" with field=form.min_shortlist_size %}
+            {% include "field.html" with field=form.listing_shortlist_size %}
+            {% include "field.html" with field=form.output_dir %}
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Cumulative Relaxation Sequence (Escalation Steps)</div>
+          <p class="hint" style="margin-bottom:.75rem;">Applied one step at a time, cumulatively, while sold candidates are below the minimum threshold.</p>
+
+          <!-- Quick Add Step Helper -->
+          <div class="step-builder-bar">
+            <select id="step-key-select" aria-label="Rule to relax">
+              <option value="max_distance_miles">Max distance (miles)</option>
+              <option value="gla_bracket_pct">Living area bracket (± %)</option>
+              <option value="lot_bracket_pct">Lot size bracket (± %)</option>
+              <option value="sale_date_max_months">Sold within (months)</option>
+            </select>
+            <input type="number" id="step-val-input" step="any" value="4.0" aria-label="New threshold value" style="max-width:120px;">
+            <button type="button" class="btn-outline btn-sm" id="add-step-btn">+ Append Step</button>
+          </div>
+
+          <div class="grid-fields">
+            {% include "field.html" with field=form.escalation wide=True %}
+            <small class="hint wide">One relaxation step per line (e.g. <code>max_distance_miles = 4.0</code>). Multiple overrides in the same step can be separated by commas.</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- 03. RANKING & FINAL SELECTION -->
+      <section class="panel config-section" id="section-ranking">
+        <div class="panel-header">
+          <span class="step-num">03</span>
+          <div>
+            <h2>Multi-Criteria Ranking &amp; Final Selection</h2>
+            <p class="hint">Configures the final pick count, subject bracketing attributes, ranking priority order, and tie-breaking tolerance bands.</p>
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Final Appraisal Grid Selection &amp; Bracketing</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=form.sold_count %}
+            {% include "field.html" with field=form.listing_count %}
+            <div class="field wide">
+              <span class="label">{{ form.bracket_attributes.label }}</span>
+              <div class="chips">{% for box in form.bracket_attributes %}<label class="chip">{{ box.tag }}<span>{{ box.choice_label }}</span></label>{% endfor %}</div>
+              <small class="hint">The pipeline requires at least one final pick above and one below the subject for each checked attribute, swapping candidates from the shortlist if needed.</small>
+            </div>
+            {% include "field.html" with field=form.equal_counts_as_bracketed wide=True %}
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Ranking Priority Order</div>
+          <p class="hint" style="margin-bottom:.6rem;">Use the arrows to reorder priority, or edit the comma-separated list directly.</p>
+          <ul class="hierarchy-builder" id="hierarchy-builder"></ul>
+          <div class="grid-fields">
+            {% include "field.html" with field=form.hierarchy wide=True %}
+            <small class="hint wide">Must contain all 7 keys: <code>subdivision, distance, gla, age, lot, beds, baths</code>.</small>
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Tolerance Bands (Tie Thresholds)</div>
+          <p class="hint" style="margin-bottom:.75rem;">Comps whose difference from the subject falls in the same tolerance bucket count as a tie on that attribute, allowing the next priority key to decide.</p>
+          <div class="grid-fields">
+            {% include "field.html" with field=form.band_distance_miles %}
+            {% include "field.html" with field=form.band_gla_pct %}
+            {% include "field.html" with field=form.band_age_years %}
+            {% include "field.html" with field=form.band_lot_pct %}
+            {% include "field.html" with field=form.band_beds_count %}
+            {% include "field.html" with field=form.band_baths_count %}
+          </div>
+        </div>
+      </section>
+
+      <!-- 04. CSV COLUMN MAPPING -->
+      <section class="panel config-section" id="section-mapping">
+        <div class="panel-header">
+          <span class="step-num">04</span>
+          <div>
+            <h2>CSV Column Header Mapping</h2>
+            <p class="hint">Stored in <code>config/column_mapping.yaml</code>. For each standard field, list candidate CSV column headers separated by commas (case-insensitive; first match wins).</p>
+          </div>
+        </div>
+
+        <div class="mapping-table-wrap">
+          <table class="plain mapping-table">
+            <thead>
+              <tr>
+                <th style="width:240px;">Standard Field</th>
+                <th>Accepted CSV Column Names (comma-separated)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in form.mapping_rows %}
+              <tr>
+                <td>
+                  <strong class="map-title">{{ row.title }}</strong>
+                  <code class="map-code">{{ row.code }}</code>
+                  <span class="hint">{{ row.desc }}</span>
+                </td>
+                <td>
+                  <div class="field{% if row.field.errors %} has-error{% endif %}">
+                    {{ row.field }}
+                    {% for e in row.field.errors %}<p class="error">{{ e }}</p>{% endfor %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 05. SUBDIVISION MATCHING & ALIASES -->
+      <section class="panel config-section" id="section-subdivision">
+        <div class="panel-header">
+          <span class="step-num">05</span>
+          <div>
+            <h2>Subdivision Normalization &amp; Aliases</h2>
+            <p class="hint">Stored in <code>settings.yaml → matching</code> and <code>config/subdivision_aliases.yaml</code>. Controls how legal and marketing subdivision names are equated.</p>
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Noise Words &amp; Confirmed Aliases</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=form.noise_words wide=True %}
+            <small class="hint wide">Words stripped before comparing subdivision names (e.g. <code>SUBDIVISION, SUBD, SUB, ADDN, ADDITION</code>).</small>
+            {% include "field.html" with field=form.subdivision_aliases wide=True %}
+            <small class="hint wide">One canonical subdivision per line: <code>CANONICAL NAME = Variant 1, Variant 2</code>. Matches here are treated as Tier 1 confirmed matches.</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- 06. STATUSES, DATES & FLAG SEVERITIES -->
+      <section class="panel config-section" id="section-severities">
+        <div class="panel-header">
+          <span class="step-num">06</span>
+          <div>
+            <h2>MLS Status Codes, Date Formats &amp; Flag Severities</h2>
+            <p class="hint">Controls how MLS statuses are routed into pools, how dates are parsed, and the severity assigned to each diagnostic flag.</p>
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Status Pools &amp; Date Parsing</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=form.status_sold wide=True %}
+            {% include "field.html" with field=form.status_listing wide=True %}
+            {% include "field.html" with field=form.date_formats wide=True %}
+            <small class="hint wide">Python strftime patterns tried in order (e.g. <code>%Y-%m-%d, %m/%d/%Y, %m/%d/%y</code>).</small>
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Diagnostic Flag Severities</div>
+          <p class="hint" style="margin-bottom:.75rem;">Any <code>BLOCKING</code> flag marks the run as blocked (exit code 2). <code>REVIEW</code> highlights items for appraiser inspection.</p>
+          <div class="mapping-table-wrap">
+            <table class="plain mapping-table">
+              <thead>
+                <tr>
+                  <th>Flag Reason</th>
+                  <th style="width:180px;">Severity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in form.severity_rows %}
+                <tr>
+                  <td>
+                    <strong class="map-title">{{ row.title }}</strong>
+                    <code class="map-code">{{ row.code }}</code>
+                    <span class="hint">{{ row.desc }}</span>
+                  </td>
+                  <td>
+                    <div class="field{% if row.field.errors %} has-error{% endif %}">
+                      {{ row.field }}
+                      {% for e in row.field.errors %}<p class="error">{{ e }}</p>{% endfor %}
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="submit-bar">
+    <span class="hint" style="margin:0;">Changes apply to all future pipeline runs and are backed up automatically.</span>
+    <button type="submit" class="primary">Save All Configurations</button>
+  </div>
+</form>
+
+<script>
+  (function () {
+    // 1. Escalation Step Builder Helper
+    const addBtn = document.getElementById('add-step-btn');
+    const keySelect = document.getElementById('step-key-select');
+    const valInput = document.getElementById('step-val-input');
+    const escTextarea = document.getElementById('id_escalation');
+    if (addBtn && keySelect && valInput && escTextarea) {
+      addBtn.addEventListener('click', function () {
+        const line = keySelect.value + ' = ' + valInput.value.trim();
+        const cur = escTextarea.value.trim();
+        escTextarea.value = cur ? (cur + '\n' + line) : line;
+      });
+    }
+
+    // 2. Interactive Hierarchy Reorder Widget
+    const hInput = document.getElementById('id_hierarchy');
+    const hList = document.getElementById('hierarchy-builder');
+    const LABELS = {
+      subdivision: 'Subdivision Match',
+      distance: 'Proximity (Distance)',
+      gla: 'Living Area (GLA)',
+      age: 'Year Built (Age)',
+      lot: 'Lot Size (Acres)',
+      beds: 'Bedrooms',
+      baths: 'Bathrooms'
+    };
+
+    function renderHierarchy() {
+      if (!hInput || !hList) return;
+      const items = hInput.value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      hList.innerHTML = '';
+      items.forEach((key, idx) => {
+        const li = document.createElement('li');
+        li.className = 'hierarchy-item';
+        li.innerHTML =
+          '<span class="h-rank">' + (idx + 1) + '</span>' +
+          '<strong class="h-name">' + (LABELS[key] || key) + '</strong>' +
+          '<code class="h-code">' + key + '</code>' +
+          '<span class="h-controls">' +
+            '<button type="button" class="btn-icon" data-dir="-1" ' + (idx === 0 ? 'disabled' : '') + ' title="Move up">↑</button>' +
+            '<button type="button" class="btn-icon" data-dir="1" ' + (idx === items.length - 1 ? 'disabled' : '') + ' title="Move down">↓</button>' +
+          '</span>';
+        li.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', function () {
+            const dir = parseInt(this.getAttribute('data-dir'), 10);
+            const target = idx + dir;
+            if (target < 0 || target >= items.length) return;
+            const tmp = items[idx];
+            items[idx] = items[target];
+            items[target] = tmp;
+            hInput.value = items.join(', ');
+            renderHierarchy();
+          });
+        });
+        hList.appendChild(li);
+      });
+    }
+    if (hInput) {
+      hInput.addEventListener('input', renderHierarchy);
+      renderHierarchy();
+    }
+  })();
+</script>
+{% endblock %}
+

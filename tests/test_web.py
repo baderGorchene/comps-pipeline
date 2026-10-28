@@ -111,3 +111,49 @@ def test_bad_inputs_are_explained(client):
 def test_unknown_run_is_404(client):
     assert client.get("/runs/../../etc/").status_code == 404
     assert client.get("/runs/20990101-000000-000000/").status_code == 404
+
+
+def test_config_page_loads_and_saves_all_files(client):
+    page = client.get("/config/")
+    assert page.status_code == 200
+    html = page.content.decode()
+    assert "Pipeline Rules &amp; Mappings" in html
+    assert "CSV Column Header Mapping" in html
+
+    # Build a full POST payload from initial form values and modify settings, mappings, and aliases
+    from django.conf import settings as django_settings
+
+    from comps_pipeline.config.loader import load_settings
+    from web.forms import ConfigForm
+
+    cfg = load_settings(django_settings.CONFIG_FILE).model_dump(mode="json")
+    post_data = ConfigForm.initial_from(cfg)
+    post_data["gla_bracket_pct"] = 20
+    post_data["map_mls_number"] = "MLS #, ListingId, CustomMLS"
+    post_data["subdivision_aliases"] = "BRUSHY CREEK PHASE 2 = BC PH 2, BRUSHYCREEK 2"
+    post_data["band_distance_miles"] = 0.5
+
+    res = client.post("/config/", post_data)
+    assert res.status_code == 302
+    assert res["Location"] == "/config/?saved=1"
+
+    saved_page = client.get("/config/?saved=1").content.decode()
+    assert "Configuration saved." in saved_page
+
+    reloaded = load_settings(django_settings.CONFIG_FILE)
+    assert reloaded.filters.gla_bracket_pct == 20
+    assert "CustomMLS" in reloaded.column_mapping["mls_number"]
+    assert reloaded.subdivision_aliases["BRUSHY CREEK PHASE 2"] == ["BC PH 2", "BRUSHYCREEK 2"]
+    assert reloaded.ranking.tolerance_bands.distance_miles == 0.5
+
+
+def test_under_the_hood_steps_shown_on_results(client):
+    res = client.post("/", {"csv_source": "sample", "subject_source": "form", **SUBJECT})
+    assert res.status_code == 302
+    page = client.get(res["Location"]).content.decode()
+    assert "CSV Ingestion &amp; Column Mapping" in page
+    assert "Validation, Deduplication &amp; Status Split" in page
+    assert "Eligibility Filtering &amp; Auto-Relaxation" in page
+    assert "Multi-Criteria Tolerance Ranking" in page
+    assert "Subject Bracketing &amp; Final Selection" in page
+

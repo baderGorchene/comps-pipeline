@@ -3,19 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Comps shortlist{% endblock %}</title>
+  <title>{% block title %}Comps Shortlist{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="{% static 'app.css' %}">
 </head>
 <body>
   <header class="bar">
-    <a class="brand" href="{% url 'new_run' %}">Comps shortlist</a>
-    <nav>
-      <a href="{% url 'new_run' %}" {% if request.resolver_match.url_name == 'new_run' %}aria-current="page"{% endif %}>New run</a>
-      <a href="{% url 'history' %}" {% if request.resolver_match.url_name == 'history' or request.resolver_match.url_name == 'results' %}aria-current="page"{% endif %}>Past runs</a>
-    </nav>
+    <div class="bar-inner">
+      <a class="brand" href="{% url 'new_run' %}">
+        <span class="brand-mark">■</span>
+        <span>COMPS SHORTLIST</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="{% url 'new_run' %}" {% if request.resolver_match.url_name == 'new_run' %}aria-current="page"{% endif %}>New Run</a>
+        <a href="{% url 'history' %}" {% if request.resolver_match.url_name == 'history' or request.resolver_match.url_name == 'results' %}aria-current="page"{% endif %}>Past Runs</a>
+        <a href="{% url 'config' %}" {% if request.resolver_match.url_name == 'config' %}aria-current="page"{% endif %}>Configuration</a>
+      </nav>
+    </div>
   </header>
   <main>{% block content %}{% endblock %}</main>
 </body>

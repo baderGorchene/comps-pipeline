@@ -1,11 +1,17 @@
 {% extends "base.html" %}
-{% block title %}New run · Comps shortlist{% endblock %}
+{% block title %}New Run · Comps Shortlist{% endblock %}
 {% block content %}
-<form method="post" enctype="multipart/form-data" class="new-run" novalidate>
+<form method="post" enctype="multipart/form-data" class="new-run" id="new-run-form" novalidate>
   {% csrf_token %}
-  <div class="intro">
-    <h1>Build a shortlist</h1>
-    <p>Give it the MLS export and the subject. It filters, ranks and picks 5 sold comps and 1 active or pending listing that bracket the subject.</p>
+  <div class="page-head">
+    <div class="intro">
+      <span class="eyebrow">APPRAISAL SHORTLIST PIPELINE</span>
+      <h1>Build a shortlist</h1>
+      <p>Provide your MLS export and subject property. The pipeline cleans, filters, ranks, and selects {{ summary.sold_count }} sold comps and {{ summary.listing_count }} active/pending listing that bracket the subject.</p>
+    </div>
+    <div class="head-actions">
+      <a href="{% url 'config' %}" class="btn-outline">Configure Pipeline Rules &amp; Mappings →</a>
+    </div>
   </div>
 
   {% if errors %}
@@ -18,82 +24,185 @@
     <div class="alert alert-block" role="alert">{{ inputs.non_field_errors }}{{ rules.non_field_errors }}</div>
   {% endif %}
 
-  <div class="columns">
-    <div class="col-inputs">
-      <section class="panel">
-        <h2>MLS export</h2>
-        <div class="switch" role="radiogroup" aria-label="MLS export">
-          {% for radio in inputs.csv_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
-        </div>
-        <div class="when-upload">
-          {% include "field.html" with field=inputs.csv_file %}
-          <small class="hint">Columns are matched by name using config/column_mapping.yaml.</small>
-        </div>
-        <p class="when-sample hint">300 made-up sales around Round Rock, TX. It matches the sample subject, not yours.</p>
-      </section>
-
-      <section class="panel">
-        <h2>Subject property</h2>
-        <div class="switch" role="radiogroup" aria-label="Subject property">
-          {% for radio in inputs.subject_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
-        </div>
-        <div class="when-yaml">{% include "field.html" with field=inputs.subject_file %}</div>
-        <div class="when-form grid-fields">
-          {% include "field.html" with field=subject.address wide=True %}
-          {% include "field.html" with field=subject.subdivision wide=True %}
-          {% include "field.html" with field=subject.living_area %}
-          {% include "field.html" with field=subject.effective_date %}
-          {% include "field.html" with field=subject.year_built %}
-          {% include "field.html" with field=subject.lot_size_sqft %}
-          {% include "field.html" with field=subject.lot_size_acres %}
-          {% include "field.html" with field=subject.bedrooms %}
-          {% include "field.html" with field=subject.baths_full %}
-          {% include "field.html" with field=subject.baths_half %}
-          {% include "field.html" with field=subject.latitude %}
-          {% include "field.html" with field=subject.longitude %}
-          <small class="hint wide">Leave latitude and longitude blank when the export has a Distance column.</small>
-        </div>
-      </section>
+  <!-- Active Configuration Strip -->
+  <section class="config-strip" aria-label="Active pipeline configuration">
+    <div class="config-strip-header">
+      <div>
+        <span class="step-badge">ACTIVE CONFIG</span>
+        <strong>Current Shortlisting Parameters</strong>
+      </div>
+      <a href="{% url 'config' %}" class="strip-link">Edit in Configuration Screen →</a>
     </div>
+    <div class="metric-pills">
+      <div class="metric-pill">
+        <span class="metric-key">Living Area</span>
+        <span class="metric-val">±{{ summary.gla_pct }}%</span>
+      </div>
+      <div class="metric-pill">
+        <span class="metric-key">Lot Size</span>
+        <span class="metric-val">±{{ summary.lot_pct }}%</span>
+      </div>
+      <div class="metric-pill">
+        <span class="metric-key">Max Distance</span>
+        <span class="metric-val">{{ summary.max_miles }} mi</span>
+      </div>
+      <div class="metric-pill">
+        <span class="metric-key">Sale Lookback</span>
+        <span class="metric-val">{{ summary.max_months }} mos</span>
+      </div>
+      <div class="metric-pill">
+        <span class="metric-key">Shortlist Target</span>
+        <span class="metric-val">{{ summary.shortlist_size }} sold (min {{ summary.min_shortlist_size }})</span>
+      </div>
+      <div class="metric-pill">
+        <span class="metric-key">Final Selection</span>
+        <span class="metric-val">{{ summary.sold_count }} sold + {{ summary.listing_count }} listing</span>
+      </div>
+    </div>
+  </section>
 
-    <div class="col-rules">
-      <section class="panel">
-        <h2>Rules</h2>
-        <p class="hint">Loaded from config/settings.yaml. Changes apply to this run only, unless you save them below.</p>
-
-        <h3>Keep comps that are</h3>
-        <div class="grid-fields">
-          {% include "field.html" with field=rules.gla_bracket_pct %}
-          {% include "field.html" with field=rules.lot_bracket_pct %}
-          {% include "field.html" with field=rules.max_distance_miles %}
-          {% include "field.html" with field=rules.sale_date_max_months %}
-          {% include "field.html" with field=rules.require_subdivision_match wide=True %}
+  <!-- Step 1 & Step 2 Main Workflow -->
+  <div class="workflow-grid">
+    <!-- Step 1: MLS Export -->
+    <section class="panel step-panel">
+      <div class="panel-header">
+        <span class="step-num">01</span>
+        <div>
+          <h2>MLS Export Data</h2>
+          <p class="hint">Select the CSV file exported from your MLS or test with the built-in sample dataset.</p>
         </div>
+      </div>
 
-        <h3>When there are too few sold comps</h3>
-        <div class="grid-fields">
-          {% include "field.html" with field=rules.min_shortlist_size %}
-          {% include "field.html" with field=rules.shortlist_size %}
-          {% include "field.html" with field=rules.listing_shortlist_size %}
-          {% include "field.html" with field=rules.escalation wide=True %}
-          <small class="hint wide">One step per line, applied one after another and kept: <code>max_distance_miles = 4</code>. Several changes in one step go on one line, separated by commas.</small>
+      <div class="switch" role="radiogroup" aria-label="MLS export">
+        {% for radio in inputs.csv_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+      </div>
+
+      <div class="when-upload">
+        <div class="upload-box">
+          {% include "field.html" with field=inputs.csv_file %}
+          <small class="hint">Spreadsheet columns are automatically matched against {{ summary.mapped_fields }} standard appraisal fields. <a href="{% url 'config' %}#section-mapping">Customize CSV column headers</a>.</small>
         </div>
+      </div>
 
-        <h3>Final pick</h3>
-        <div class="grid-fields">
-          {% include "field.html" with field=rules.sold_count %}
-          {% include "field.html" with field=rules.listing_count %}
-          <div class="field wide">
-            <span class="label">{{ rules.bracket_attributes.label }}</span>
-            <div class="chips">{% for box in rules.bracket_attributes %}<label class="chip">{{ box.tag }}<span>{{ box.choice_label }}</span></label>{% endfor %}</div>
+      <div class="when-sample sample-callout">
+        <strong>Synthetic Round Rock, TX Dataset (300 rows)</strong>
+        <p class="hint">Includes sold, active, pending, and expired listings engineered to exercise every pipeline stage against the sample subject property.</p>
+      </div>
+
+      <!-- How the pipeline works preview -->
+      <div class="under-hood-preview">
+        <div class="preview-title">What happens under the hood when you run:</div>
+        <ol class="mini-steps">
+          <li><strong>1. Header Mapping</strong><span>Matches CSV headers to standard fields</span></li>
+          <li><strong>2. Data Cleaning</strong><span>Deduplicates MLS #s, validates dates &amp; numbers</span></li>
+          <li><strong>3. Geo &amp; Subdivision</strong><span>Computes Haversine miles &amp; fuzzy-matches subdivision</span></li>
+          <li><strong>4. Hard Filters</strong><span>Applies brackets; auto-relaxes if sold &lt; {{ summary.min_shortlist_size }}</span></li>
+          <li><strong>5. Tolerance Ranking</strong><span>Ranks by {{ summary.hierarchy|join:" → " }}</span></li>
+          <li><strong>6. Subject Bracketing</strong><span>Picks {{ summary.sold_count }} sold + {{ summary.listing_count }} listing &amp; swaps to bracket gaps</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Step 2: Subject Property -->
+    <section class="panel step-panel">
+      <div class="panel-header">
+        <span class="step-num">02</span>
+        <div>
+          <h2>Subject Property</h2>
+          <p class="hint">Enter the subject property characteristics used as the target for filtering and bracketing.</p>
+        </div>
+      </div>
+
+      <div class="switch" role="radiogroup" aria-label="Subject property">
+        {% for radio in inputs.subject_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+      </div>
+
+      <div class="when-yaml">
+        <div class="upload-box">
+          {% include "field.html" with field=inputs.subject_file %}
+        </div>
+      </div>
+
+      <div class="when-form">
+        <div class="form-group-box">
+          <div class="group-title">Identification &amp; Valuation Date</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=subject.address wide=True %}
+            {% include "field.html" with field=subject.subdivision %}
+            {% include "field.html" with field=subject.effective_date %}
           </div>
-          {% include "field.html" with field=rules.equal_counts_as_bracketed wide=True %}
-          {% include "field.html" with field=rules.hierarchy wide=True %}
-          <small class="hint wide">Words: subdivision, distance, gla, age, lot, beds, baths. Same subdivision first means it is preferred, not required.</small>
         </div>
 
-        <details class="more">
-          <summary>Missing values, spelling and status codes</summary>
+        <div class="form-group-box">
+          <div class="group-title">Size, Lot &amp; Age</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=subject.living_area %}
+            {% include "field.html" with field=subject.year_built %}
+            {% include "field.html" with field=subject.lot_size_sqft %}
+            {% include "field.html" with field=subject.lot_size_acres %}
+          </div>
+        </div>
+
+        <div class="form-group-box">
+          <div class="group-title">Rooms &amp; Coordinates</div>
+          <div class="grid-fields">
+            {% include "field.html" with field=subject.bedrooms %}
+            {% include "field.html" with field=subject.baths_full %}
+            {% include "field.html" with field=subject.baths_half %}
+            <div></div>
+            {% include "field.html" with field=subject.latitude %}
+            {% include "field.html" with field=subject.longitude %}
+            <small class="hint wide">Leave latitude and longitude blank when the MLS export already includes a Distance column.</small>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Optional Per-Run Rule Overrides (Collapsed by default, keeps main UI clean) -->
+  <details class="panel override-drawer" {% if rules.errors or rules.non_field_errors %}open{% endif %}>
+    <summary>
+      <div>
+        <h2>Override Rules for This Run Only</h2>
+        <span class="hint-inline">Optional — To manage all settings, column mappings, aliases, and severities permanently, use the <a href="{% url 'config' %}">Configuration screen</a>.</span>
+      </div>
+    </summary>
+    <div class="override-body">
+      <div class="columns">
+        <div>
+          <h3>Filter Thresholds</h3>
+          <div class="grid-fields">
+            {% include "field.html" with field=rules.gla_bracket_pct %}
+            {% include "field.html" with field=rules.lot_bracket_pct %}
+            {% include "field.html" with field=rules.max_distance_miles %}
+            {% include "field.html" with field=rules.sale_date_max_months %}
+            {% include "field.html" with field=rules.require_subdivision_match wide=True %}
+          </div>
+
+          <h3>Shortlist &amp; Relaxation Steps</h3>
+          <div class="grid-fields">
+            {% include "field.html" with field=rules.min_shortlist_size %}
+            {% include "field.html" with field=rules.shortlist_size %}
+            {% include "field.html" with field=rules.listing_shortlist_size %}
+            {% include "field.html" with field=rules.escalation wide=True %}
+            <small class="hint wide">One step per line, applied cumulatively: <code>max_distance_miles = 4</code>.</small>
+          </div>
+        </div>
+
+        <div>
+          <h3>Final Pick &amp; Ranking</h3>
+          <div class="grid-fields">
+            {% include "field.html" with field=rules.sold_count %}
+            {% include "field.html" with field=rules.listing_count %}
+            <div class="field wide">
+              <span class="label">{{ rules.bracket_attributes.label }}</span>
+              <div class="chips">{% for box in rules.bracket_attributes %}<label class="chip">{{ box.tag }}<span>{{ box.choice_label }}</span></label>{% endfor %}</div>
+            </div>
+            {% include "field.html" with field=rules.equal_counts_as_bracketed wide=True %}
+            {% include "field.html" with field=rules.hierarchy wide=True %}
+          </div>
+
+          <h3>Missing Data &amp; Status Codes</h3>
           <div class="grid-fields">
             {% include "field.html" with field=rules.missing_gla %}
             {% include "field.html" with field=rules.missing_lot %}
@@ -103,14 +212,49 @@
             {% include "field.html" with field=rules.status_sold wide=True %}
             {% include "field.html" with field=rules.status_listing wide=True %}
           </div>
-        </details>
-      </section>
+        </div>
+      </div>
     </div>
-  </div>
+  </details>
 
   <div class="submit-bar">
     {% include "field.html" with field=rules.save_default %}
-    <button type="submit" class="primary">Build shortlist</button>
+    <button type="submit" class="primary" id="submit-run-btn">Build shortlist →</button>
   </div>
 </form>
+
+<!-- Under the Hood Live Execution Overlay -->
+<div class="run-overlay" id="run-overlay" hidden aria-live="polite">
+  <div class="run-modal">
+    <span class="eyebrow">EXECUTING PIPELINE</span>
+    <h2>Processing Shortlist Stages</h2>
+    <p class="hint">Running deterministic appraisal rules against your MLS dataset...</p>
+    <ol class="live-steps" id="live-steps">
+      <li class="active"><span class="dot"></span><strong>Stage 1:</strong> Reading CSV &amp; mapping column headers</li>
+      <li><span class="dot"></span><strong>Stage 2:</strong> Cleaning fields, deduplicating MLS #s &amp; splitting status pools</li>
+      <li><span class="dot"></span><strong>Stage 3:</strong> Calculating Haversine distances &amp; normalizing subdivisions</li>
+      <li><span class="dot"></span><strong>Stage 4:</strong> Evaluating hard filter brackets &amp; relaxation rules</li>
+      <li><span class="dot"></span><strong>Stage 5:</strong> Ranking candidates across tolerance bands</li>
+      <li><span class="dot"></span><strong>Stage 6:</strong> Selecting final comps &amp; verifying subject bracketing</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+  document.getElementById('new-run-form')?.addEventListener('submit', function () {
+    const overlay = document.getElementById('run-overlay');
+    if (!overlay) return;
+    overlay.hidden = false;
+    const items = overlay.querySelectorAll('#live-steps li');
+    let idx = 0;
+    setInterval(function () {
+      if (idx < items.length - 1) {
+        items[idx].classList.remove('active');
+        items[idx].classList.add('done');
+        idx += 1;
+        items[idx].classList.add('active');
+      }
+    }, 180);
+  });
+</script>
 {% endblock %}
