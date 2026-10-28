@@ -11,7 +11,7 @@ REQUIRED_COLUMNS = ("mls_number", "status", "living_area", "subdivision_raw")
 
 
 class InputError(Exception):
-    """Bad input file (unreadable CSV, missing column, invalid subject). CLI exit code 1."""
+    """Bad input file (unreadable CSV, missing column, invalid subject)."""
 
 
 def read_csv(path: Path) -> pd.DataFrame:

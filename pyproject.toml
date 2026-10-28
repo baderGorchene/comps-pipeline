@@ -5,14 +5,11 @@ description = "Comparable sales shortlisting pipeline for residential appraisal"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "google-genai>=2.33.0,<3.0.0",
+    "django>=5.2,<6",
     "pandas>=3.1.0,<4.0.0",
     "pydantic>=2.14.1,<3.0.0",
     "pyyaml>=6.0.3,<7.0.0",
     "rapidfuzz>=3.14.6,<4.0.0",
-    "rich>=15.0.0,<16.0.0",
-    "streamlit>=1.66.1,<2.0.0",
-    "typer>=0.27.3,<0.28.0",
 ]
 
 [build-system]

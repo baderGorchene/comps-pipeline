@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "comps-web",
+      "runtimeExecutable": "C:/Users/badrg/AppData/Roaming/Python/Python314/Scripts/uv.exe",
+      "runtimeArgs": ["run", "python", "manage.py", "runserver", "127.0.0.1:8000", "--noreload"],
+      "port": 8000
+    }
+  ]
+}

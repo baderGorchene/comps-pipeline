@@ -1,0 +1,22 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Comps shortlist{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+  <link rel="stylesheet" href="{% static 'app.css' %}">
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="{% url 'new_run' %}">Comps shortlist</a>
+    <nav>
+      <a href="{% url 'new_run' %}" {% if request.resolver_match.url_name == 'new_run' %}aria-current="page"{% endif %}>New run</a>
+      <a href="{% url 'history' %}" {% if request.resolver_match.url_name == 'history' or request.resolver_match.url_name == 'results' %}aria-current="page"{% endif %}>Past runs</a>
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

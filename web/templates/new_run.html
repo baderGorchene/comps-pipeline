@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}New run · Comps shortlist{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="new-run" novalidate>
+  {% csrf_token %}
+  <div class="intro">
+    <h1>Build a shortlist</h1>
+    <p>Give it the MLS export and the subject. It filters, ranks and picks 5 sold comps and 1 active or pending listing that bracket the subject.</p>
+  </div>
+
+  {% if errors %}
+    <div class="alert alert-block" role="alert">
+      <strong>The run did not start.</strong>
+      {% for e in errors %}<pre>{{ e }}</pre>{% endfor %}
+    </div>
+  {% endif %}
+  {% if inputs.non_field_errors or rules.non_field_errors %}
+    <div class="alert alert-block" role="alert">{{ inputs.non_field_errors }}{{ rules.non_field_errors }}</div>
+  {% endif %}
+
+  <div class="columns">
+    <div class="col-inputs">
+      <section class="panel">
+        <h2>MLS export</h2>
+        <div class="switch" role="radiogroup" aria-label="MLS export">
+          {% for radio in inputs.csv_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+        </div>
+        <div class="when-upload">
+          {% include "field.html" with field=inputs.csv_file %}
+          <small class="hint">Columns are matched by name using config/column_mapping.yaml.</small>
+        </div>
+        <p class="when-sample hint">300 made-up sales around Round Rock, TX. It matches the sample subject, not yours.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Subject property</h2>
+        <div class="switch" role="radiogroup" aria-label="Subject property">
+          {% for radio in inputs.subject_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+        </div>
+        <div class="when-yaml">{% include "field.html" with field=inputs.subject_file %}</div>
+        <div class="when-form grid-fields">
+          {% include "field.html" with field=subject.address wide=True %}
+          {% include "field.html" with field=subject.subdivision wide=True %}
+          {% include "field.html" with field=subject.living_area %}
+          {% include "field.html" with field=subject.effective_date %}
+          {% include "field.html" with field=subject.year_built %}
+          {% include "field.html" with field=subject.lot_size_sqft %}
+          {% include "field.html" with field=subject.lot_size_acres %}
+          {% include "field.html" with field=subject.bedrooms %}
+          {% include "field.html" with field=subject.baths_full %}
+          {% include "field.html" with field=subject.baths_half %}
+          {% include "field.html" with field=subject.latitude %}
+          {% include "field.html" with field=subject.longitude %}
+          <small class="hint wide">Leave latitude and longitude blank when the export has a Distance column.</small>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-rules">
+      <section class="panel">
+        <h2>Rules</h2>
+        <p class="hint">Loaded from config/settings.yaml. Changes apply to this run only, unless you save them below.</p>
+
+        <h3>Keep comps that are</h3>
+        <div class="grid-fields">
+          {% include "field.html" with field=rules.gla_bracket_pct %}
+          {% include "field.html" with field=rules.lot_bracket_pct %}
+          {% include "field.html" with field=rules.max_distance_miles %}
+          {% include "field.html" with field=rules.sale_date_max_months %}
+          {% include "field.html" with field=rules.require_subdivision_match wide=True %}
+        </div>
+
+        <h3>When there are too few sold comps</h3>
+        <div class="grid-fields">
+          {% include "field.html" with field=rules.min_shortlist_size %}
+          {% include "field.html" with field=rules.shortlist_size %}
+          {% include "field.html" with field=rules.listing_shortlist_size %}
+          {% include "field.html" with field=rules.escalation wide=True %}
+          <small class="hint wide">One step per line, applied one after another and kept: <code>max_distance_miles = 4</code>. Several changes in one step go on one line, separated by commas.</small>
+        </div>
+
+        <h3>Final pick</h3>
+        <div class="grid-fields">
+          {% include "field.html" with field=rules.sold_count %}
+          {% include "field.html" with field=rules.listing_count %}
+          <div class="field wide">
+            <span class="label">{{ rules.bracket_attributes.label }}</span>
+            <div class="chips">{% for box in rules.bracket_attributes %}<label class="chip">{{ box.tag }}<span>{{ box.choice_label }}</span></label>{% endfor %}</div>
+          </div>
+          {% include "field.html" with field=rules.equal_counts_as_bracketed wide=True %}
+          {% include "field.html" with field=rules.hierarchy wide=True %}
+          <small class="hint wide">Words: subdivision, distance, gla, age, lot, beds, baths. Same subdivision first means it is preferred, not required.</small>
+        </div>
+
+        <details class="more">
+          <summary>Missing values, spelling and status codes</summary>
+          <div class="grid-fields">
+            {% include "field.html" with field=rules.missing_gla %}
+            {% include "field.html" with field=rules.missing_lot %}
+            {% include "field.html" with field=rules.missing_distance %}
+            {% include "field.html" with field=rules.missing_close_date %}
+            {% include "field.html" with field=rules.subdivision_min_score %}
+            {% include "field.html" with field=rules.status_sold wide=True %}
+            {% include "field.html" with field=rules.status_listing wide=True %}
+          </div>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <div class="submit-bar">
+    {% include "field.html" with field=rules.save_default %}
+    <button type="submit" class="primary">Build shortlist</button>
+  </div>
+</form>
+{% endblock %}

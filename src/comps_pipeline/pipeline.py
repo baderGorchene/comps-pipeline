@@ -1,4 +1,4 @@
-"""Orchestrates every stage in order. Python decides everything; the LLM only adds flags."""
+"""Orchestrates every shortlisting stage in order."""
 
 import datetime as dt
 import hashlib
@@ -18,8 +18,6 @@ from comps_pipeline.filters.escalation import filter_with_escalation
 from comps_pipeline.filters.geo import compute_distances
 from comps_pipeline.ingest.cleaner import clean
 from comps_pipeline.ingest.mapper import InputError, map_rows, read_csv, suggest_mapping
-from comps_pipeline.llm import LLMClient, build_client
-from comps_pipeline.llm.review import review
 from comps_pipeline.matching.subdivision import match_all
 from comps_pipeline.models import (
     AuditEntry,
@@ -27,7 +25,6 @@ from comps_pipeline.models import (
     Decision,
     Excluded,
     Flag,
-    FlagReason,
     RunManifest,
     Severity,
     StageOutput,
@@ -36,7 +33,6 @@ from comps_pipeline.models import (
 from comps_pipeline.outputs.writers import write_manifest, write_outputs
 from comps_pipeline.ranking.ranker import rank, subject_gaps
 from comps_pipeline.selection.final import FinalSelection, select_final
-from comps_pipeline.validation.gate import validate_review
 
 log = logging.getLogger(__name__)
 
@@ -113,9 +109,7 @@ def run(
     input_csv: Path,
     subject_file: Path,
     settings: Settings,
-    llm_client: LLMClient | None = None,
 ) -> RunResult:
-    """llm_client overrides the client built from settings (tests inject mocks this way)."""
     input_csv, subject_file = Path(input_csv), Path(subject_file)
     started_at = dt.datetime.now().isoformat(timespec="seconds")
     timer = _Timer()
@@ -131,10 +125,6 @@ def run(
 
     with timer.stage("load_inputs"):
         subject = load_subject(subject_file)
-        if llm_client is not None and settings.llm.enabled:
-            client, llm_mode, llm_unavailable = llm_client, llm_client.model, None
-        else:
-            client, llm_mode, llm_unavailable = build_client(settings)
     with timer.stage("ingest"):
         df = read_csv(input_csv)
         rows = map_rows(df, settings.column_mapping)
@@ -174,19 +164,6 @@ def run(
         final = select_final(shortlists["sold"], shortlists["listing"], subject, settings)
         flags.extend(final.flags)
         audit.extend(final.audit)
-    batches = []
-    with timer.stage("llm_review"):
-        if client is None:
-            flags.append(settings.flag(FlagReason.LLM_UNAVAILABLE, None, str(llm_unavailable)))
-            audit.append(_summary("llm_review", message=llm_unavailable))
-        else:
-            batches = review(shortlist, client, settings)
-            audit.append(_summary("llm_review", batches=len(batches), model=llm_mode))
-    with timer.stage("validation_gate"):
-        for b in batches:
-            gate = validate_review(b.result, b.batch, settings, b.index, b.attempts)
-            flags.extend(gate.accepted_flags + gate.gate_flags)
-            audit.extend(gate.audit)
 
     for i, f in enumerate(flags, start=1):
         f.id = f"F{i:04d}"
@@ -194,6 +171,8 @@ def run(
     run_id, out_dir = _new_run_dir(settings.run.output_dir)
     with timer.stage("write_outputs"):
         paths = write_outputs(out_dir, shortlist, final.picks, excluded, flags, audit, raw_rows)
+        paths["subject.json"] = out_dir / "subject.json"
+        paths["subject.json"].write_text(subject.model_dump_json(indent=2), encoding="utf-8")
     manifest = RunManifest(
         run_id=run_id,
         started_at=started_at,
@@ -203,7 +182,6 @@ def run(
         subject_sha256=sha256_file(subject_file),
         config_snapshot=settings.model_dump(mode="json"),
         package_version=__version__,
-        llm_mode=llm_mode,
         row_counts={
             "input_rows": len(rows),
             "after_clean": kept_after_clean,

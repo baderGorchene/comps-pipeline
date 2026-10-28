@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Past runs | Comps shortlist{% endblock %}
+{% block content %}
+<div class="intro">
+  <h1>Past runs</h1>
+  <p>Every run is kept in data/output, newest first.</p>
+</div>
+<section class="panel">
+  {% if runs %}
+  <div class="table-scroll">
+    <table class="plain">
+      <thead><tr><th>Started</th><th>Subject</th><th>Export</th><th class="num">Picked</th><th>Rules</th><th></th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td>{{ r.started }}</td>
+          <td><a href="{% url 'results' r.id %}">{{ r.address }}</a></td>
+          <td>{{ r.input }}</td>
+          <td class="num">{{ r.final }}</td>
+          <td>{% if r.level %}Relaxed {{ r.level }} step{{ r.level|pluralize }}{% else %}As set{% endif %}</td>
+          <td>{% if r.blocked %}<span class="sev sev-blocking">Not enough comps</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p>No runs yet. <a href="{% url 'new_run' %}">Build a shortlist</a> to see it here.</p>
+  {% endif %}
+</section>
+{% endblock %}

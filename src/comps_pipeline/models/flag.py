@@ -5,10 +5,7 @@ from pydantic import BaseModel
 
 class Source(StrEnum):
     MLS = "MLS"
-    COUNTY = "COUNTY"
     COMPUTED = "COMPUTED"
-    VISION = "VISION"
-    MANUAL = "MANUAL"
     NONE = "NONE"
 
 
@@ -18,22 +15,11 @@ class FlagReason(StrEnum):
     DUPLICATE_LISTING = "DUPLICATE_LISTING"
     NO_COORDINATES = "NO_COORDINATES"
     SUBDIVISION_UNCERTAIN = "SUBDIVISION_UNCERTAIN"
-    POSSIBLE_NON_ARMS_LENGTH = "POSSIBLE_NON_ARMS_LENGTH"
-    REMARKS_CONCERN = "REMARKS_CONCERN"
     SHORTLIST_BELOW_MINIMUM = "SHORTLIST_BELOW_MINIMUM"
-    LLM_SCHEMA_FAILURE = "LLM_SCHEMA_FAILURE"
-    LLM_UNKNOWN_ID = "LLM_UNKNOWN_ID"
-    LLM_EVIDENCE_NOT_FOUND = "LLM_EVIDENCE_NOT_FOUND"
-    LLM_DISALLOWED_REASON = "LLM_DISALLOWED_REASON"
-    LLM_UNAVAILABLE = "LLM_UNAVAILABLE"
     STATUS_NOT_USED = "STATUS_NOT_USED"  # expired/withdrawn/unknown status
     CRITERIA_RELAXED = "CRITERIA_RELAXED"  # escalation step applied
     NOT_BRACKETED = "NOT_BRACKETED"  # final selection misses above/below on an attribute
     NO_LISTING_COMP = "NO_LISTING_COMP"  # no active/option/pending comp for the final pick
-    # Reserved for Phase 2 (condition engine); defined now, unused.
-    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
-    ADJACENT_DISAGREEMENT = "ADJACENT_DISAGREEMENT"
-    CONFLICTING_EVIDENCE = "CONFLICTING_EVIDENCE"
 
 
 class Severity(StrEnum):
@@ -44,8 +30,6 @@ class Severity(StrEnum):
 
 class FlagOrigin(StrEnum):
     RULE = "RULE"
-    LLM = "LLM"
-    GATE = "GATE"
 
 
 class Flag(BaseModel):

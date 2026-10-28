@@ -1,10 +1,6 @@
 # config
 
-Every business rule the pipeline applies lives in these files, never in the code. Check your edits with:
-
-```powershell
-uv run python -m comps_pipeline validate-config
-```
+Every business rule the pipeline applies lives in these files, never in the code. The web app reads them at the start of each run, and its rules form shows the values from `settings.yaml`.
 
 A typo in a setting name, or a missing setting, is an error. There are no hidden defaults in the code.
 
@@ -12,7 +8,7 @@ A typo in a setting name, or a missing setting, is an error. There are no hidden
 
 | File | What it is |
 |---|---|
-| `settings.yaml` | Thresholds, ranking order, LLM options |
+| `settings.yaml` | Thresholds, rule relaxation steps, ranking order, final pick |
 | `column_mapping.yaml` | Which CSV header feeds which standard field |
 | `subdivision_aliases.yaml` | Names you have confirmed mean the same subdivision (empty by default) |
 | `subject.example.yaml` | Template for a subject property |
@@ -93,33 +89,13 @@ Subdivision tiers: **0** same name after cleanup (case, "Ph"/"Phase", "II"/"2", 
 
 Final tie-breakers, always in this order: exact distance, exact GLA difference, MLS number.
 
-### llm
-| Setting | Meaning |
-|---|---|
-| `enabled` | `false` skips the review (an `LLM_UNAVAILABLE` info flag is added) |
-| `provider` | `gemini` or `mock` (offline, for tests and demos) |
-| `mock_mode` | `clean`, `hallucinate_id`, `fake_quote`, `malformed`, `error` |
-| `model_env` / `api_key_env` | Names of the environment variables (in `.env`) holding the model and key |
-| `temperature` | `0` for repeatable answers |
-| `max_retries` | Retries after a response that doesn't match the schema |
-| `timeout_seconds` | Give up on one Gemini request after this many seconds. The batch gets an `LLM_UNAVAILABLE` flag and the run continues |
-| `api_attempts` | Tries per request when Gemini is overloaded (429/503) or times out. Worst case per batch is about `timeout_seconds x api_attempts` |
-| `batch_size` | Comps per request |
-| `fields_sent` | The only fields that leave your machine. `mls_number` is required |
-| `cache` / `cache_dir` | Reuse identical answers instead of paying for them again |
-
-### validation
-| Setting | Meaning |
-|---|---|
-| `require_evidence_quote` | An LLM flag must quote the comp's remarks or subdivision text word for word, or it is rejected |
-
 ### severity
-How serious each flag reason is: `INFO`, `REVIEW` or `BLOCKING`. Every reason must be listed. Any BLOCKING flag makes the run exit with code 2. Shipped values:
+How serious each flag reason is: `INFO`, `REVIEW` or `BLOCKING`. Every reason must be listed. A BLOCKING flag shows the run as "Not enough comps". Shipped values:
 
 | Severity | Reasons |
 |---|---|
 | BLOCKING | SHORTLIST_BELOW_MINIMUM |
-| REVIEW | MISSING_REQUIRED_FIELD, INVALID_VALUE, NO_COORDINATES, SUBDIVISION_UNCERTAIN, POSSIBLE_NON_ARMS_LENGTH, REMARKS_CONCERN, LLM_SCHEMA_FAILURE, CRITERIA_RELAXED, NOT_BRACKETED, NO_LISTING_COMP |
-| INFO | DUPLICATE_LISTING, STATUS_NOT_USED, LLM_UNKNOWN_ID, LLM_EVIDENCE_NOT_FOUND, LLM_DISALLOWED_REASON, LLM_UNAVAILABLE |
+| REVIEW | MISSING_REQUIRED_FIELD, INVALID_VALUE, NO_COORDINATES, SUBDIVISION_UNCERTAIN, CRITERIA_RELAXED, NOT_BRACKETED, NO_LISTING_COMP |
+| INFO | DUPLICATE_LISTING, STATUS_NOT_USED |
 
-The dashboard's "Save as default" rewrites `settings.yaml` without these comments. The previous version is kept as `settings.yaml.bak`.
+The web form's "Save these rules as the default" rewrites `settings.yaml` without these comments. The previous version is kept as `settings.yaml.bak`.

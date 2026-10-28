@@ -55,25 +55,6 @@ ranking:
     beds_count: 1
     baths_count: 1                # full = 1, half = 0.5
 
-llm:
-  enabled: true
-  provider: gemini               # gemini | mock
-  mock_mode: clean               # clean | hallucinate_id | fake_quote | malformed | error
-  model_env: GEMINI_MODEL        # env var holding the Gemini model name
-  api_key_env: GEMINI_API_KEY    # env var holding the API key (never logged)
-  temperature: 0
-  max_retries: 1
-  timeout_seconds: 60          # give up on one Gemini request after this
-  api_attempts: 2               # tries per request when Gemini is overloaded (503) or times out
-  batch_size: 10
-  fields_sent: [mls_number, subdivision_raw, public_remarks, close_price, close_date]
-  cache: true
-  cache_dir: data/cache
-
-validation:
-  require_evidence_quote: true
-
-# Final pick from the ranked shortlists.
 selection:
   sold_count: 5
   listing_count: 1               # active, option or pending
@@ -88,19 +69,8 @@ severity:
   DUPLICATE_LISTING: INFO
   NO_COORDINATES: REVIEW
   SUBDIVISION_UNCERTAIN: REVIEW
-  POSSIBLE_NON_ARMS_LENGTH: REVIEW
-  REMARKS_CONCERN: REVIEW
   SHORTLIST_BELOW_MINIMUM: BLOCKING
-  LLM_SCHEMA_FAILURE: REVIEW
-  LLM_UNKNOWN_ID: INFO
-  LLM_EVIDENCE_NOT_FOUND: INFO
-  LLM_DISALLOWED_REASON: INFO
-  LLM_UNAVAILABLE: INFO
   STATUS_NOT_USED: INFO
   CRITERIA_RELAXED: REVIEW
   NOT_BRACKETED: REVIEW
   NO_LISTING_COMP: REVIEW
-  # Reserved for Phase 2 (condition engine)
-  INSUFFICIENT_EVIDENCE: REVIEW
-  ADJACENT_DISAGREEMENT: REVIEW
-  CONFLICTING_EVIDENCE: REVIEW

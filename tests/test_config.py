@@ -3,7 +3,7 @@ import shutil
 import pytest
 import yaml
 
-from comps_pipeline.config.loader import ConfigError, apply_llm_override, load_settings
+from comps_pipeline.config.loader import ConfigError, load_settings
 from comps_pipeline.models import FlagReason, Severity
 from tests.conftest import CONFIG
 
@@ -60,12 +60,6 @@ def test_reordered_hierarchy_accepted(tmp_path):
     assert load_settings(path).ranking.hierarchy == order
 
 
-def test_unknown_fields_sent_rejected(tmp_path):
-    path = _write_config(tmp_path, lambda d: d["llm"].update(fields_sent=["mls_number", "ssn"]))
-    with pytest.raises(ConfigError, match="ssn"):
-        load_settings(path)
-
-
 def test_unknown_mapping_field_rejected(tmp_path):
     path = _write_config(tmp_path, lambda d: None)
     (tmp_path / "column_mapping.yaml").write_text("garage: [Garage]\n", encoding="utf-8")
@@ -79,8 +73,8 @@ def test_severity_override(tmp_path):
 
 
 def test_severity_must_cover_every_reason(tmp_path):
-    path = _write_config(tmp_path, lambda d: d["severity"].pop("LLM_UNAVAILABLE"))
-    with pytest.raises(ConfigError, match="LLM_UNAVAILABLE"):
+    path = _write_config(tmp_path, lambda d: d["severity"].pop("NOT_BRACKETED"))
+    with pytest.raises(ConfigError, match="NOT_BRACKETED"):
         load_settings(path)
 
 
@@ -101,11 +95,3 @@ def test_overlapping_status_rejected(tmp_path):
     path = _write_config(tmp_path, lambda d: d["status"]["listing"].append("sold"))
     with pytest.raises(ConfigError, match="SOLD"):
         load_settings(path)
-
-
-def test_llm_override():
-    s = load_settings(CONFIG)
-    assert apply_llm_override(s, "off").llm.enabled is False
-    assert apply_llm_override(s, "mock").llm.provider == "mock"
-    with pytest.raises(ConfigError):
-        apply_llm_override(s, "gpt")

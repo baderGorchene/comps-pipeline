@@ -103,36 +103,6 @@ class RankingSettings(Strict):
         return v
 
 
-class LLMSettings(Strict):
-    enabled: bool
-    provider: Literal["gemini", "mock"]
-    mock_mode: Literal["clean", "hallucinate_id", "fake_quote", "malformed", "error"]
-    model_env: str
-    api_key_env: str
-    temperature: float = Field(ge=0, le=2)
-    max_retries: int = Field(ge=0)
-    timeout_seconds: float = Field(gt=0)  # per Gemini request
-    api_attempts: int = Field(ge=1)  # tries per request on 429/5xx/timeouts
-    batch_size: int = Field(gt=0)
-    fields_sent: list[str]
-    cache: bool
-    cache_dir: Path
-
-    @field_validator("fields_sent")
-    @classmethod
-    def _known_fields(cls, v: list[str]) -> list[str]:
-        unknown = [f for f in v if f not in STANDARD_FIELDS]
-        if unknown:
-            raise ValueError(f"unknown fields_sent {unknown}; allowed: {list(STANDARD_FIELDS)}")
-        if "mls_number" not in v:
-            raise ValueError("fields_sent must include mls_number")
-        return v
-
-
-class ValidationSettings(Strict):
-    require_evidence_quote: bool
-
-
 class SelectionSettings(Strict):
     """Final pick: sold_count sold + listing_count active/option/pending, subject bracketed."""
 
@@ -161,8 +131,6 @@ class Settings(Strict):
     escalation: EscalationSettings
     matching: MatchingSettings
     ranking: RankingSettings
-    llm: LLMSettings
-    validation: ValidationSettings
     selection: SelectionSettings
     severity: dict[FlagReason, Severity]  # must list every FlagReason
     # Loaded from the files next to settings.yaml, not from settings.yaml itself.

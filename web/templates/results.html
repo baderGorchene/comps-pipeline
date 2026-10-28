@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ subject.address|default:run_id }} | Comps shortlist{% endblock %}
+{% block content %}
+<div class="results">
+  <div class="intro">
+    <h1>{{ subject.address|default:"Subject" }}</h1>
+    <p class="meta">Run {{ run_id }}, from {{ input_name }}, effective date {{ subject.effective_date }}</p>
+  </div>
+
+  {% if blocking %}
+    <div class="alert alert-block" role="alert">
+      <strong>Not enough comps.</strong>
+      {% for f in blocking %}<p>{{ f.message }}</p>{% endfor %}
+    </div>
+  {% elif gaps %}
+    <div class="alert alert-review" role="status">
+      <strong>The subject is not bracketed on {{ gaps|join:", " }}.</strong>
+      <p>No shortlisted comp could fill the gap. Check the shortlist below or widen the rules.</p>
+    </div>
+  {% else %}
+    <div class="alert alert-ok" role="status">
+      <strong>Bracketed on every attribute.</strong>
+      <p>{{ final_count }} comps picked. {{ review_count }} item{{ review_count|pluralize }} flagged for review.</p>
+    </div>
+  {% endif %}
+
+  <section class="panel grid-panel">
+    <h2>Final selection</h2>
+    {% if grid.columns %}
+    <div class="table-scroll">
+      <table class="compgrid">
+        <thead>
+          <tr>
+            <th scope="col" class="rowhead"></th>
+            <th scope="col" class="subject-col">Subject</th>
+            {% for col in grid.columns %}
+              <th scope="col" class="{% if col.pool == 'listing' %}listing-col{% endif %}">
+                {{ col.title }}<span class="mls">{{ col.mls }}{% if col.status %}, {{ col.status }}{% endif %}</span>
+              </th>
+            {% endfor %}
+            <th scope="col" class="state-col">Bracket</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in grid.rows %}
+          <tr>
+            <th scope="row" class="rowhead">{{ row.label }}</th>
+            <td class="subject-col num">{{ row.subject }}</td>
+            {% for cell in row.cells %}
+              <td class="num side-{{ cell.side|default:'none' }}">
+                {% if cell.side == 'above' %}<span class="arrow" aria-label="above the subject">▲</span>{% elif cell.side == 'below' %}<span class="arrow" aria-label="below the subject">▼</span>{% elif cell.side == 'equal' %}<span class="arrow" aria-label="equal to the subject">=</span>{% endif %}
+                {{ cell.text }}
+              </td>
+            {% endfor %}
+            <td class="state-col"><span class="state state-{{ row.state|slugify }}">{{ row.state|capfirst }}</span></td>
+          </tr>
+          {% endfor %}
+          {% for label, subj, values in grid.facts %}
+          <tr class="fact">
+            <th scope="row" class="rowhead">{{ label }}</th>
+            <td class="subject-col">{{ subj|default:"" }}</td>
+            {% for v in values %}<td>{{ v|default:"—" }}</td>{% endfor %}
+            <td class="state-col"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">▲ above the subject, ▼ below. A row is bracketed when at least one comp sits on each side.</p>
+    {% else %}
+      <p>No comps passed the rules.</p>
+    {% endif %}
+  </section>
+
+  {% if steps %}
+  <section class="panel">
+    <h2>How the rules were applied</h2>
+    <ol class="steps">
+      {% for s in steps %}
+      <li class="{% if s.used %}used{% endif %}">
+        <span class="step-label">{{ s.label }}</span>
+        <span class="step-count">{{ s.sold }} sold, {{ s.listing }} listing{{ s.listing|pluralize }}</span>
+        {% if s.used %}<span class="tag">Used</span>{% elif not forloop.last %}<span class="step-note">fewer than {{ min_sold }} sold</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
+  <section class="panel">
+    <h2>Sold shortlist <span class="count">{{ sold|length }}</span></h2>
+    {% include "comp_table.html" with rows=sold %}
+  </section>
+
+  <section class="panel">
+    <h2>Active, option and pending <span class="count">{{ listings|length }}</span></h2>
+    {% include "comp_table.html" with rows=listings %}
+  </section>
+
+  <details class="panel">
+    <summary><h2>Flags <span class="count">{{ flags|length }}</span></h2></summary>
+    <div class="table-scroll">
+      <table class="plain">
+        <thead><tr><th>Severity</th><th>Reason</th><th>MLS #</th><th>Message</th></tr></thead>
+        <tbody>
+        {% for f in flags %}
+          <tr><td><span class="sev sev-{{ f.severity|lower }}">{{ f.severity|lower|capfirst }}</span></td><td>{{ f.reason }}</td><td>{{ f.mls_number|default:"" }}</td><td>{{ f.message }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary><h2>Excluded rows <span class="count">{{ excluded|length }}</span></h2></summary>
+    <div class="table-scroll">
+      <table class="plain">
+        <thead><tr><th class="num">Row</th><th>MLS #</th><th>Status</th><th>Why</th></tr></thead>
+        <tbody>
+        {% for e in excluded %}
+          <tr><td class="num">{{ e.source_row }}</td><td>{{ e.mls_number }}</td><td>{{ e.status }}</td><td><ul class="reasons">{% for r in e.reasons %}<li>{{ r }}</li>{% endfor %}</ul></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <details class="panel">
+    <summary><h2>Run log and files</h2></summary>
+    <p class="counts">{{ counts.input_rows }} rows read, {{ counts.after_clean }} usable, {{ counts.after_hard_filters }} passed the rules, {{ counts.excluded }} excluded.</p>
+    <ul class="downloads">
+      {% for name in downloads %}<li><a href="{% url 'download' run_id name %}">{{ name }}</a></li>{% endfor %}
+    </ul>
+    {% if log %}<pre class="log">{{ log }}</pre>{% endif %}
+  </details>
+</div>
+{% endblock %}

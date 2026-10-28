@@ -74,5 +74,8 @@ Newest decisions at the bottom. Each one gives the context, the decision, and it
 ### ADR-024 Distance from coordinates, else the export's Distance column
 **Decision:** Haversine when both the subject and the comp have coordinates. Otherwise the MLS export's `Distance` value ("4.0 mi") with source `MLS`. Neither gives `NO_COORDINATES`. Subject latitude/longitude are now optional. **Consequence:** Exports without coordinates work without geocoding.
 
+### ADR-025 Shortlisting only, with a Django UI
+**Context:** The scope was narrowed to the shortlist and final pick. **Decision:** Removed the Gemini review and validation gate, the Streamlit dashboard, the command line, and the placeholder modules for later phases. A Django app (`web/`) replaces the dashboard and CLI; `run.bat` starts it. It has no database: run results are the files in `data/output`, which the pages read back. **Consequence:** ADR-005, 006, 012, 014 and 015 (LLM and gate) no longer apply. Nothing leaves the machine, and runs finish in about a second.
+
 ### Dependencies
-Runtime: pandas, pydantic, pyyaml, rapidfuzz, typer, rich, google-genai, streamlit. Dev: pytest, ruff. No additional direct dependencies were added beyond the agreed stack.
+Runtime: django, pandas, pydantic, pyyaml, rapidfuzz. Dev: pytest, ruff.

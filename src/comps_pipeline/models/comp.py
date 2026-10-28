@@ -71,7 +71,7 @@ class Comp(BaseModel):
     public_remarks: Cell[str] = Field(default_factory=Cell)
     extras: dict[str, Any] = Field(default_factory=dict)
 
-    # Computed by Python, never by the LLM.
+    # Computed from the values above.
     distance_miles: Cell[float] = Field(default_factory=Cell)
     gla_diff_pct: Cell[float] = Field(default_factory=Cell)
     age_diff_years: Cell[int] = Field(default_factory=Cell)

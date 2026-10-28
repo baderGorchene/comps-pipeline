@@ -1,0 +1,34 @@
+{% if rows %}
+<div class="table-scroll">
+  <table class="plain comps">
+    <thead>
+      <tr>
+        <th class="num">Rank</th><th>MLS #</th><th>Status</th><th class="num">Price</th><th>Date</th>
+        <th class="num">GLA</th><th class="num">Acres</th><th class="num">Built</th><th class="num">Beds</th><th class="num">Baths</th>
+        <th class="num">Distance</th><th>Subdivision</th><th class="num">Flags</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{% if r.picked %}picked{% endif %}">
+        <td class="num">{{ r.rank }}</td>
+        <td>{{ r.mls }}{% if r.picked %} <span class="tag">Picked</span>{% endif %}</td>
+        <td>{{ r.status }}</td>
+        <td class="num">{{ r.price }}</td>
+        <td>{{ r.date }}</td>
+        <td class="num">{{ r.gla }}</td>
+        <td class="num">{{ r.acres }}</td>
+        <td class="num">{{ r.year }}</td>
+        <td class="num">{{ r.beds }}</td>
+        <td class="num">{{ r.baths }}</td>
+        <td class="num">{{ r.miles }}</td>
+        <td>{{ r.subdivision }}{% if r.same_subdivision %} <span class="same" title="Same subdivision as the subject">same</span>{% endif %}</td>
+        <td class="num">{{ r.flags|default:"" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="hint">None.</p>
+{% endif %}

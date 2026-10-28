@@ -73,7 +73,7 @@ def _display(name: str, value: Any) -> Any:
 def shortlist_rows(shortlist: list[Comp], flags: list[Flag]) -> list[dict[str, Any]]:
     by_comp: dict[str, list[str]] = defaultdict(list)
     for f in flags:
-        if f.mls_number and f.origin != "GATE":  # gate rejections are not facts about the comp
+        if f.mls_number:
             by_comp[f.mls_number].append(f"{f.severity.value}:{f.reason.value}")
     rows = []
     for c in shortlist:

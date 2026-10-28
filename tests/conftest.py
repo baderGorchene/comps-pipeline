@@ -16,18 +16,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    """Repo settings with LLM off and every output redirected to tmp_path."""
+    """Repo settings with every output redirected to tmp_path."""
     s = load_settings(CONFIG)
-    return s.model_copy(
-        update={
-            "run": s.run.model_copy(update={"output_dir": tmp_path / "out"}),
-            "llm": s.llm.model_copy(update={"enabled": False, "cache_dir": tmp_path / "cache"}),
-        }
-    )
-
-
-def with_llm(s: Settings, **update) -> Settings:
-    return s.model_copy(update={"llm": s.llm.model_copy(update=update)})
+    return s.model_copy(update={"run": s.run.model_copy(update={"output_dir": tmp_path / "out"})})
 
 
 def with_filters(s: Settings, **update) -> Settings:
