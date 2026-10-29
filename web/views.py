@@ -43,6 +43,11 @@ RULE_LABELS = {
     "sale_date_window": "Sold before lookback window cutoff",
     "subdivision_match": "Subdivision did not match subject",
     "required_features": "Missing required property feature",
+    "distressed_sale": "Distressed / non-arm's-length sale (REO, Short Sale, Foreclosure, Fixer)",
+    "age_restriction_55_plus": "55+ age-restricted community mismatch",
+    "sub_type_and_stories": "Property sub-type or story count mismatch",
+    "foundation_compatibility": "Incompatible foundation type (Slab vs. Crawl Space/Pier & Beam)",
+    "market_guardrails": "School District (ISD), Utility (Septic/Sewer), or stale Active DOM",
     "STATUS_NOT_USED": "Unused MLS status (Expired / Withdrawn / Other)",
     "DUPLICATE_LISTING": "Duplicate MLS listing number",
     "MISSING_REQUIRED_FIELD": "Missing required field (e.g. MLS #, GLA, Close Price)",
@@ -358,25 +363,66 @@ def _miles(v: Any) -> str:
     return "—" if v is None else f"{v:.2f} mi"
 
 
+def _extra(c: dict, *candidates: str) -> str:
+    extras = c.get("extras") or {}
+    signals = c.get("remarks_signals") or {}
+    by_key = {k.strip().casefold(): str(v).strip() for k, v in extras.items() if v is not None}
+    for k, v in signals.items():
+        if v is not None:
+            by_key.setdefault(k.strip().casefold(), str(v).strip())
+    for cand in candidates:
+        val = by_key.get(cand.strip().casefold(), "")
+        if val:
+            return val
+    return ""
+
+
+def _cond_qual(c: dict) -> str:
+    cond = _extra(c, "Condition", "Condition Rating", "UAD Condition", "_detected_condition")
+    qual = _extra(c, "Quality", "Quality Rating", "UAD Quality", "_detected_quality")
+    if cond and qual:
+        return f"{cond} / {qual}"
+    return cond or qual or "—"
+
+
+def _garage(c: dict) -> str:
+    g = _extra(c, "Garage Spaces", "Garage", "GarageSpaces", "# Garage Spaces")
+    if g:
+        return f"{g} Car" if g.isdigit() else g
+    cp = _extra(c, "Carport Spaces", "Carport", "CarportSpaces")
+    if cp and cp != "0":
+        return f"{cp} Carport" if cp.isdigit() else cp
+    return "—"
+
+
 def _comp_row(c: dict, picked: set[str], flag_counts: dict[str, int]) -> dict:
     acres = _comp_attr(c, "lot")
     baths = _comp_attr(c, "baths")
     return {
         "rank": c["rank"],
+        "pool": c.get("pool", ""),
         "mls": c["mls_number"],
+        "address": _extra(c, "Address", "Street Address", "Property Address") or "—",
         "status": _v(c, "status") or "",
         "price": _money(_v(c, "close_price") or _v(c, "list_price")),
-        "date": _v(c, "close_date") or "",
+        "contract_date": (
+            _extra(c, "Pending Date", "Contract Date", "PendingDate", "ContractDate") or "—"
+        ),
+        "date": _v(c, "close_date") or "—",
         "gla": _fmt("gla", _v(c, "living_area")),
         "acres": "—" if acres is None else f"{float(acres):.3f}",
         "year": _v(c, "year_built") or "—",
+        "cond_qual": _cond_qual(c),
         "beds": _fmt("beds", _v(c, "bedrooms")),
         "baths": _fmt("baths", baths),
+        "garage": _garage(c),
         "miles": _miles(_v(c, "distance_miles")),
         "subdivision": _v(c, "subdivision_raw") or "",
         "same_subdivision": _v(c, "subdivision_tier") in (0, 1),
         "flags": flag_counts.get(c["mls_number"], 0),
         "picked": c["mls_number"] in picked,
+        "selection_rationale": c.get("selection_rationale") or "",
+        "deselection_reason": c.get("deselection_reason") or "",
     }
 
 
@@ -623,11 +669,19 @@ def results(request: HttpRequest, run_id: str) -> HttpResponse:
     pipeline_trace = _build_pipeline_trace(
         manifest, audit, shortlist, final, flags, subject, steps
     )
+    unused_path = run_dir / "analyzed_not_used.json"
+    if unused_path.is_file():
+        unused_raw = _json(unused_path)
+    else:
+        unused_raw = [c for c in shortlist if c["mls_number"] not in picked]
+
     context = {
         "run_id": run_id,
         "manifest": manifest,
         "subject": subject,
         "grid": _grid(final, subject, cfg["selection"]["bracket_attributes"], gaps),
+        "final_table": [_comp_row(c, picked, flag_counts) for c in final],
+        "analyzed_not_used": [_comp_row(c, picked, flag_counts) for c in unused_raw],
         "final_count": len(final),
         "gaps": [ATTRIBUTE_LABELS[g] for g in sorted(gaps) if g in ATTRIBUTE_LABELS],
         "blocking": blocking,

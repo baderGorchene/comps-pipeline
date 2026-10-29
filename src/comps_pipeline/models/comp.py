@@ -80,6 +80,49 @@ class Comp(BaseModel):
     subdivision_tier: Cell[int] = Field(default_factory=Cell)
     rank: int | None = None  # rank within its pool
     sort_key: list[Any] | None = None  # stored for audit
+    remarks_signals: dict[str, Any] = Field(default_factory=dict)  # Step 3 NLP & heuristic findings
+    selection_rationale: str | None = None  # UAD 3.6 Table 1 selection justification
+    deselection_reason: str | None = None  # UAD 3.6 Table 2 1-sentence deselection audit log
+
+    def extra_str(self, *candidates: str) -> str:
+        """Case-insensitive lookup across extras and remarks_signals; returns stripped str or ''."""
+        by_key = {
+            k.strip().casefold(): str(v).strip() for k, v in self.extras.items() if v is not None
+        }
+        for k, v in self.remarks_signals.items():
+            if v is not None:
+                by_key.setdefault(k.strip().casefold(), str(v).strip())
+        for c in candidates:
+            val = by_key.get(c.strip().casefold(), "")
+            if val:
+                return val
+        return ""
+
+    def address_display(self) -> str:
+        return self.extra_str("Address", "Street Address", "Property Address")
+
+    def contract_date_display(self) -> str:
+        return self.extra_str(
+            "Pending Date", "Contract Date", "PendingDate", "ContractDate", "Under Contract Date"
+        )
+
+    def condition_quality_display(self) -> str:
+        cond = self.extra_str(
+            "Condition", "Condition Rating", "UAD Condition", "_detected_condition"
+        )
+        qual = self.extra_str("Quality", "Quality Rating", "UAD Quality", "_detected_quality")
+        if cond and qual:
+            return f"{cond} / {qual}"
+        return cond or qual or ""
+
+    def garage_display(self) -> str:
+        g = self.extra_str("Garage Spaces", "Garage", "GarageSpaces", "# Garage Spaces")
+        if g:
+            return f"{g} Car" if g.isdigit() else g
+        cp = self.extra_str("Carport Spaces", "Carport", "CarportSpaces")
+        if cp and cp != "0":
+            return f"{cp} Carport" if cp.isdigit() else cp
+        return ""
 
     def lot_acres(self) -> Fraction | None:
         return lot_acres(self.lot_size_sqft.value, self.lot_size_acres.value)

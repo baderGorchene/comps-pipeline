@@ -171,13 +171,28 @@ def run(
         final = select_final(shortlists["sold"], shortlists["listing"], subject, settings)
         flags.extend(final.flags)
         audit.extend(final.audit)
+        # Annotate shortlist with selection_rationale / deselection_reason from final_selection
+        by_pick = {c.mls_number: c for c in final.picks}
+        by_unused = {c.mls_number: c for c in final.analyzed_not_used}
+        shortlist = [
+            by_pick.get(c.mls_number) or by_unused.get(c.mls_number) or c for c in shortlist
+        ]
 
     for i, f in enumerate(flags, start=1):
         f.id = f"F{i:04d}"
 
     run_id, out_dir = _new_run_dir(settings.run.output_dir)
     with timer.stage("write_outputs"):
-        paths = write_outputs(out_dir, shortlist, final.picks, excluded, flags, audit, raw_rows)
+        paths = write_outputs(
+            out_dir,
+            shortlist,
+            final.picks,
+            excluded,
+            flags,
+            audit,
+            raw_rows,
+            analyzed_not_used=final.analyzed_not_used,
+        )
         paths["subject.json"] = out_dir / "subject.json"
         paths["subject.json"].write_text(subject.model_dump_json(indent=2), encoding="utf-8")
     manifest = RunManifest(

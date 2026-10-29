@@ -20,6 +20,10 @@ class FlagReason(StrEnum):
     CRITERIA_RELAXED = "CRITERIA_RELAXED"  # escalation step applied
     NOT_BRACKETED = "NOT_BRACKETED"  # final selection misses above/below on an attribute
     NO_LISTING_COMP = "NO_LISTING_COMP"  # no active/option/pending comp for the final pick
+    NON_CONFORMING_CONVERSION = "NON_CONFORMING_CONVERSION"  # enclosed garage conversion
+    SOLAR_LEASE_REVIEW = "SOLAR_LEASE_REVIEW"  # leased/financed or unverified solar
+    ADU_DETECTED = "ADU_DETECTED"  # accessory dwelling unit / casita / guest house
+    SITE_INFLUENCE_NOTE = "SITE_INFLUENCE_NOTE"  # waterfront, resaca, golf, or highway
 
 
 class Severity(StrEnum):

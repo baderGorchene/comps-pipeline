@@ -1,6 +1,6 @@
 import datetime as dt
 from fractions import Fraction
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,6 +25,20 @@ class Subject(BaseModel):
     baths_full: int | None = Field(default=None, ge=0)
     baths_half: int | None = Field(default=None, ge=0)
     foundation_type: str | None = None
+    # Step 0 Master Guidance Subject Inputs (all optional with safe defaults):
+    transaction_type: Literal["refinance", "purchase"] = "refinance"
+    contract_price: int | None = Field(default=None, gt=0)
+    construction_status: Literal["existing", "new_construction"] = "existing"
+    property_sub_type: str | None = None
+    stories: float | None = Field(default=None, gt=0)
+    condition: str | None = None  # e.g. "C1".."C6"
+    quality: str | None = None  # e.g. "Q1".."Q6"
+    school_district: str | None = None
+    water_sewer: str | None = None  # e.g. "City Sewer" vs "Septic"
+    garage_spaces: int | None = Field(default=None, ge=0)
+    pool: bool | None = None
+    has_adu: bool | None = None
+    is_55_plus: bool = False
     extras: dict[str, Any] = Field(default_factory=dict)
 
     def lot_acres(self) -> Fraction | None:

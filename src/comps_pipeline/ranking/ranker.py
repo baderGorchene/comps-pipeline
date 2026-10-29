@@ -137,6 +137,45 @@ def _raw(value: float | None) -> tuple[int, float]:
     return (1, 0.0) if value is None else (0, abs(value))
 
 
+def _listing_status_priority(c: Comp) -> int:
+    """Step 1 Master Guidance: In Pool B (listing), prioritize Pending/Option over Active."""
+    if c.pool != "listing":
+        return 0
+    s = (c.status.value or "").strip().upper()
+    pending_codes = {
+        "P",
+        "PENDING",
+        "O",
+        "OPTION",
+        "OPTION PENDING",
+        "AC",
+        "ACTIVE CONTINGENT",
+        "ACTIVE UNDER CONTRACT",
+    }
+    if s in pending_codes:
+        return 0
+    return 1
+
+
+def _financing_priority(c: Comp) -> int:
+    """Step 2 Master Guidance: Deprioritize Seller / Owner Financing behind Conventional/FHA/VA."""
+    fin = c.extra_str("Financing", "Buyer Financing", "Sale Terms", "Terms").casefold()
+    if any(k in fin for k in ("owner", "seller", "wrap", "contract for deed")):
+        return 1
+    return 0
+
+
+def _contract_price_bucket(c: Comp, subject: Subject) -> tuple[int, int]:
+    """Step 0 Master Guidance: When Purchase contract_price is set, rank by 5% price bands."""
+    if subject.transaction_type != "purchase" or not subject.contract_price:
+        return (0, 0)
+    price = c.close_price.value or c.list_price.value
+    if price is None:
+        return MISSING
+    pct = _pct_diff(price, subject.contract_price)
+    return _bucket(pct, 5.0)
+
+
 def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
     bands = settings.ranking.tolerance_bands
     tier = c.subdivision_tier.value
@@ -153,7 +192,10 @@ def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
         "baths": _bucket(_diff(c.total_baths(), subject.total_baths()), bands.baths_count),
     }
     return (
+        _listing_status_priority(c),
+        _financing_priority(c),
         *(buckets[k] for k in settings.ranking.hierarchy),
+        _contract_price_bucket(c, subject),
         _raw(distance),
         _raw(c.gla_diff_pct.value),
         c.mls_number,

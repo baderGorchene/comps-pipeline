@@ -83,6 +83,22 @@ FLAG_DESCRIPTIONS: dict[str, tuple[str, str]] = {
         "Missing Listing Comp",
         "Fewer active/pending listings were available than requested for the final pick.",
     ),
+    "NON_CONFORMING_CONVERSION": (
+        "Non-Conforming Garage Conversion",
+        "Remarks mention an enclosed/converted garage that may inflate GLA without permits.",
+    ),
+    "SOLAR_LEASE_REVIEW": (
+        "Solar Panel Lease / Ownership Review",
+        "Solar panels detected without verified paid-off ownership ($0 value if leased).",
+    ),
+    "ADU_DETECTED": (
+        "ADU / Guest House Detected",
+        "Accessory dwelling unit, casita, or guest quarters noted in remarks.",
+    ),
+    "SITE_INFLUENCE_NOTE": (
+        "Site / View / External Influence",
+        "Waterfront, resaca, golf course, or highway/commercial adjacency noted in remarks.",
+    ),
 }
 
 
@@ -128,6 +144,30 @@ class SubjectForm(forms.Form):
     baths_half = _int("Half baths", 0, 50, required=False)
     latitude = forms.FloatField(min_value=-90, max_value=90, required=False)
     longitude = forms.FloatField(min_value=-180, max_value=180, required=False)
+    # Step 0 Master Guidance Subject fields (all optional with safe defaults):
+    transaction_type = forms.ChoiceField(
+        label="Transaction type",
+        choices=[("refinance", "Refinance"), ("purchase", "Purchase")],
+        initial="refinance",
+        required=False,
+    )
+    contract_price = _int("Contract price ($)", 1, 100_000_000, required=False)
+    construction_status = forms.ChoiceField(
+        label="Construction status",
+        choices=[
+            ("existing", "Existing (C2–C6: 5 Sold + 1 Listing)"),
+            ("new_construction", "New Construction (C1: In-Sub + Competing)"),
+        ],
+        initial="existing",
+        required=False,
+    )
+    stories = forms.FloatField(label="Stories", min_value=1, max_value=10, required=False)
+    foundation_type = forms.CharField(label="Foundation type", max_length=100, required=False)
+    condition = forms.CharField(label="UAD Condition (C1–C6)", max_length=10, required=False)
+    quality = forms.CharField(label="UAD Quality (Q1–Q6)", max_length=10, required=False)
+    school_district = forms.CharField(label="School district (ISD)", max_length=120, required=False)
+    water_sewer = forms.CharField(label="Water / Sewer", max_length=100, required=False)
+    garage_spaces = _int("Garage spaces", 0, 20, required=False)
 
     def subject_dict(self) -> dict[str, Any]:
         return {k: v for k, v in self.cleaned_data.items() if v not in (None, "")}

@@ -186,6 +186,207 @@ def required_features_filter(
     return res
 
 
+def _is_truthy(val: str) -> bool:
+    return val.strip().casefold() in {"y", "yes", "true", "1"}
+
+
+def distressed_filter(
+    comps: list[Comp], subject: Subject, settings: Settings
+) -> FilterResult:
+    """Step 2 Master Guidance: Exclude REO, Short Sale, Foreclosure, Relocation, or fixers."""
+    if not settings.filters.exclude_distressed:
+        return FilterResult(kept=list(comps))
+    rule, res = "distressed_sale", FilterResult()
+    for c in comps:
+        reasons: list[str] = []
+        reo_val = c.extra_str("REO", "Bank Owned", "Foreclosure", "REO Y/N", "REO/Bank Owned")
+        if _is_truthy(reo_val):
+            reasons.append("REO/Bank Owned=Yes")
+        if _is_truthy(c.extra_str("Short Sale", "ShortSale", "Short Sale Y/N")):
+            reasons.append("Short Sale=Yes")
+        fin = c.extra_str("Financing", "Buyer Financing", "Sale Terms", "Terms").casefold()
+        if any(bad in fin for bad in ("foreclos", "reo", "relocation", "short sale")):
+            reasons.append(f"Financing={fin!r}")
+        nlp_distressed = c.remarks_signals.get("_distressed_remarks") or c.extras.get(
+            "_distressed_remarks"
+        )
+        if nlp_distressed:
+            reasons.append(f"remarks indicate distressed/uninhabitable ({nlp_distressed})")
+        if reasons:
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, "; ".join(reasons)))
+        else:
+            res.kept.append(c)
+    return res
+
+
+def age_restriction_filter(
+    comps: list[Comp], subject: Subject, settings: Settings
+) -> FilterResult:
+    """Step 2 Master Guidance: Separate 55+ age-restricted communities from non-restricted."""
+    if not settings.filters.enforce_55_plus:
+        return FilterResult(kept=list(comps))
+    rule, res = "age_restriction_55_plus", FilterResult()
+    for c in comps:
+        comp_55 = bool(c.remarks_signals.get("_is_55_plus") or c.extras.get("_is_55_plus"))
+        if not subject.is_55_plus and comp_55:
+            msg = "55+ age-restricted property excluded for standard subject"
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg))
+        elif subject.is_55_plus and not comp_55 and c.public_remarks.value:
+            msg = "non-55+ property excluded for 55+ age-restricted subject"
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg))
+        else:
+            res.kept.append(c)
+    return res
+
+
+def _normalize_sub_type(raw: str) -> str:
+    s = raw.strip().casefold()
+    sfr_names = {
+        "r",
+        "res",
+        "residential",
+        "sfr",
+        "single family",
+        "single family residence",
+        "detached",
+    }
+    if s in sfr_names:
+        return "single_family"
+    if any(k in s for k in ("mobile", "manufactured", "modular")):
+        return "manufactured"
+    if any(k in s for k in ("condo", "condominium", "townhouse", "townhome")):
+        return "attached"
+    return s
+
+
+def sub_type_and_story_filter(
+    comps: list[Comp], subject: Subject, settings: Settings
+) -> FilterResult:
+    """Step 2 Master Guidance: Enforce Property Sub-Type and Story Count matching when present."""
+    rule, f, res = "sub_type_and_stories", settings.filters, FilterResult()
+    subj_type = (
+        _normalize_sub_type(subject.property_sub_type) if subject.property_sub_type else None
+    )
+    subj_stories = subject.stories
+    for c in comps:
+        reasons: list[str] = []
+        raw_type = c.extra_str(
+            "Property Sub-Type", "Property Sub Type", "PropertySubType", "Sub-Type", "PT"
+        )
+        if f.require_sub_type_match and raw_type:
+            comp_type = _normalize_sub_type(raw_type)
+            if comp_type == "manufactured" and (subj_type in (None, "single_family")):
+                reasons.append(
+                    f"manufactured/mobile home ({raw_type!r}) incompatible with site-built SFR"
+                )
+            elif subj_type and comp_type != subj_type:
+                reasons.append(
+                    f"property sub-type {raw_type!r} != subject {subject.property_sub_type!r}"
+                )
+        raw_stories = c.extra_str("# Stories", "Stories", "Levels", "Story Count", "StoriesTotal")
+        if f.require_story_match and subj_stories is not None and raw_stories:
+            try:
+                comp_stories = float(raw_stories.split()[0])
+                if abs(comp_stories - subj_stories) >= 0.5:
+                    reasons.append(
+                        f"stories {comp_stories:g} != subject stories {subj_stories:g}"
+                    )
+            except ValueError:
+                pass
+        if reasons:
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, "; ".join(reasons)))
+        else:
+            res.kept.append(c)
+    return res
+
+
+def foundation_compatibility_filter(
+    comps: list[Comp], subject: Subject, settings: Settings
+) -> FilterResult:
+    """Step 2 Master Guidance: If subject is Slab, exclude Crawl Space / Pier & Beam comps."""
+    if not settings.filters.enforce_foundation_compatibility or not subject.foundation_type:
+        return FilterResult(kept=list(comps))
+    rule, res = "foundation_compatibility", FilterResult()
+    subj_f = subject.foundation_type.strip().casefold()
+    elevated_keywords = ("crawl", "pier", "beam", "piling", "stilts", "elevated")
+    subj_is_slab = "slab" in subj_f and not any(k in subj_f for k in elevated_keywords)
+    for c in comps:
+        comp_f = (c.foundation_type.value or "").strip().casefold()
+        if not comp_f:
+            res.kept.append(c)
+            continue
+        comp_is_elevated = any(k in comp_f for k in elevated_keywords) and "slab" not in comp_f
+        if subj_is_slab and comp_is_elevated:
+            res.audit.append(
+                _entry(
+                    c,
+                    Decision.EXCLUDED,
+                    rule,
+                    f"foundation {c.foundation_type.value!r} incompatible with Slab subject",
+                )
+            )
+        else:
+            res.kept.append(c)
+    return res
+
+
+def _core_isd(raw: str) -> str:
+    return (
+        raw.casefold()
+        .replace("cisd", "")
+        .replace("isd", "")
+        .replace("school district", "")
+        .strip()
+    )
+
+
+def school_and_utility_guardrail_filter(
+    comps: list[Comp], subject: Subject, settings: Settings
+) -> FilterResult:
+    """Step 4 & 6 Master Guidance: School District (ISD) & Utility (Sewer vs Septic) guardrails."""
+    rule, f, res = "market_guardrails", settings.filters, FilterResult()
+    subj_isd = (subject.school_district or "").strip()
+    subj_util = (subject.water_sewer or "").strip().casefold()
+    for c in comps:
+        reasons: list[str] = []
+        if f.require_school_district_match and subj_isd:
+            comp_isd = c.extra_str(
+                "School District", "ISD", "SchoolDistrict", "High School District", "_extracted_isd"
+            ).strip()
+            if comp_isd:
+                norm_s, norm_c = _core_isd(subj_isd), _core_isd(comp_isd)
+                if norm_s and norm_c and norm_s != norm_c:
+                    reasons.append(
+                        f"school district {comp_isd!r} != subject {subject.school_district!r}"
+                    )
+        if f.require_water_sewer_match and subj_util:
+            comp_util = c.extra_str("Water Sewer", "Water/Sewer", "Utilities", "Sewer").casefold()
+            if comp_util:
+                subj_septic = "septic" in subj_util
+                comp_septic = "septic" in comp_util
+                if subj_septic != comp_septic:
+                    reasons.append(
+                        f"utility {comp_util!r} conflicts with subject {subject.water_sewer!r}"
+                    )
+        if c.pool == "listing":
+            raw_dom = c.extra_str("DOM", "Days On Market", "DaysOnMarket", "CDOM")
+            status_val = (c.status.value or "").strip().upper()
+            if status_val in {"A", "ACTIVE"} and raw_dom:
+                try:
+                    dom = int(float(raw_dom.replace(",", "").strip()))
+                    if dom > f.max_active_dom:
+                        reasons.append(
+                            f"stale active listing DOM {dom} > max {f.max_active_dom} days"
+                        )
+                except ValueError:
+                    pass
+        if reasons:
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, "; ".join(reasons)))
+        else:
+            res.kept.append(c)
+    return res
+
+
 FILTERS: tuple[Callable[[list[Comp], Subject, Settings], FilterResult], ...] = (
     sale_date_filter,
     gla_filter,
@@ -193,6 +394,11 @@ FILTERS: tuple[Callable[[list[Comp], Subject, Settings], FilterResult], ...] = (
     distance_filter,
     subdivision_filter,
     required_features_filter,
+    distressed_filter,
+    age_restriction_filter,
+    sub_type_and_story_filter,
+    foundation_compatibility_filter,
+    school_and_utility_guardrail_filter,
 )
 
 

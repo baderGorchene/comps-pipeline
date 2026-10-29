@@ -249,6 +249,100 @@
     </div>
   </section>
 
+  <!-- Table 1: UAD 3.6 Final 6 Comparables & Selection Rationales -->
+  <section class="studio-card">
+    <div class="studio-card-head">
+      <div class="studio-title-wrap">
+        <span class="step-pill">TABLE 1 · UAD 3.6</span>
+        <div>
+          <h2>The Final {{ final_count }} Comparables &amp; Selection Rationales</h2>
+          <p class="hint">UAD 3.6 Table 1 including Contract Date, Closed Date, Condition/Quality, Garage, and automated Selection Rationale.</p>
+        </div>
+      </div>
+    </div>
+    {% if final_table %}
+    <div class="table-scroll">
+      <table class="plain comps">
+        <thead>
+          <tr>
+            <th class="num">#</th><th>MLS #</th><th>Address</th><th>Subdivision</th><th>Status</th>
+            <th class="num">Sale/List Price</th><th>Contract Date</th><th>Closed Date</th>
+            <th class="num">GLA</th><th class="num">Acres</th><th class="num">Built</th>
+            <th>Cond / Qual</th><th class="num">Bed/Bath</th><th>Garage</th><th>Selection Rationale</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in final_table %}
+          <tr class="picked">
+            <td class="num">{{ forloop.counter }}</td>
+            <td><strong>{{ r.mls }}</strong></td>
+            <td>{{ r.address }}</td>
+            <td>{{ r.subdivision }}{% if r.same_subdivision %} <span class="same">same</span>{% endif %}</td>
+            <td>{{ r.status }}</td>
+            <td class="num">{{ r.price }}</td>
+            <td>{{ r.contract_date }}</td>
+            <td>{{ r.date }}</td>
+            <td class="num">{{ r.gla }}</td>
+            <td class="num">{{ r.acres }}</td>
+            <td class="num">{{ r.year }}</td>
+            <td>{{ r.cond_qual }}</td>
+            <td class="num">{{ r.beds }} / {{ r.baths }}</td>
+            <td>{{ r.garage }}</td>
+            <td>{{ r.selection_rationale }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- Table 2: UAD 3.6 "Analyzed, Not Used" Audit Log -->
+  <section class="studio-card">
+    <div class="studio-card-head">
+      <div class="studio-title-wrap">
+        <span class="step-pill">TABLE 2 · UAD 3.6 AUDIT LOG</span>
+        <div>
+          <h2>"Analyzed, Not Used" Shortlist Audit Log <span class="count">{{ analyzed_not_used|length }}</span></h2>
+          <p class="hint">Remaining shortlisted candidates (ranks 6–30 &amp; backup listings) with a 1-sentence UAD 3.6 Deselection Reason for your workfile.</p>
+        </div>
+      </div>
+      {% if "analyzed_not_used.csv" in downloads %}
+        <a href="{% url 'download' run_id 'analyzed_not_used.csv' %}" class="btn-outline btn-sm">↓ Export Table 2 (.csv)</a>
+      {% endif %}
+    </div>
+    {% if analyzed_not_used %}
+    <div class="table-scroll">
+      <table class="plain comps">
+        <thead>
+          <tr>
+            <th class="num">Pool Rank</th><th>MLS #</th><th>Address</th><th>Subdivision</th>
+            <th>Status</th><th class="num">Price</th><th class="num">GLA</th>
+            <th class="num">Distance</th><th>1-Sentence Deselection Reason (Workfile Audit)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in analyzed_not_used %}
+          <tr>
+            <td class="num">#{{ r.rank }} ({{ r.pool }})</td>
+            <td><code>{{ r.mls }}</code></td>
+            <td>{{ r.address }}</td>
+            <td>{{ r.subdivision }}{% if r.same_subdivision %} <span class="same">same</span>{% endif %}</td>
+            <td>{{ r.status }}</td>
+            <td class="num">{{ r.price }}</td>
+            <td class="num">{{ r.gla }}</td>
+            <td class="num">{{ r.miles }}</td>
+            <td>{{ r.deselection_reason }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="hint">No additional shortlisted candidates outside the Final 6.</p>
+    {% endif %}
+  </section>
+
   <!-- Shortlist & Diagnostics Tables -->
   <section class="studio-card">
     <div class="studio-card-head">

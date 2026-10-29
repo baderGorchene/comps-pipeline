@@ -5,6 +5,7 @@
 be tier 0 or 1.
 """
 
+import re
 from dataclasses import dataclass
 
 from rapidfuzz import fuzz
@@ -23,6 +24,12 @@ from comps_pipeline.models import (
 )
 
 STAGE = "subdivision"
+_LEGAL_NOISE = re.compile(r"\b(?:LOT|LT|BLK|BLOCK)\s+[0-9A-Z-]+\b")
+
+
+def strip_legal_lot_block(legal_text: str) -> str:
+    """Remove LOT/BLK tokens from a tax legal description before subdivision matching."""
+    return _LEGAL_NOISE.sub(" ", legal_text.upper())
 
 
 @dataclass(frozen=True)
@@ -71,6 +78,13 @@ def match_all(comps: list[Comp], subject: Subject, settings: Settings) -> StageO
             out.comps.append(comp)  # cleaner already flagged it; tier stays null
             continue
         m = match_subdivision(raw, subject.subdivision, settings, index)
+        legal = comp.extra_str("Legal Description", "LegalDescription", "Tax Legal Description")
+        if m.tier == 3 and legal:
+            m_legal = match_subdivision(
+                strip_legal_lot_block(legal), subject.subdivision, settings, index
+            )
+            if m_legal.tier < m.tier or (m_legal.tier == m.tier and m_legal.score > m.score):
+                m = m_legal
         update = {
             "subdivision_normalized": Cell(value=m.normalized, source=Source.COMPUTED),
             "subdivision_tier": Cell(value=m.tier, source=Source.COMPUTED),

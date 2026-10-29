@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from comps_pipeline.config.schema import Settings
+from comps_pipeline.ingest.remarks import analyze_comp_remarks
 from comps_pipeline.models import (
     AuditEntry,
     Cell,
@@ -200,6 +201,8 @@ def clean(rows: list[dict[str, Any]], subject: Subject, settings: Settings) -> S
             continue
 
         comp, flags = parse_comp(row, source_row, subject, settings, pool)
+        comp, nlp_flags = analyze_comp_remarks(comp, subject, settings)
+        flags.extend(nlp_flags)
         out.flags.extend(flags)
         for f in flags:
             out.audit.append(

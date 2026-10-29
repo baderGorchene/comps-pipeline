@@ -61,6 +61,15 @@ class FilterSettings(Strict):
     sale_date_max_months: int = Field(gt=0)  # sold pool only
     missing_close_date: Literal["exclude", "keep_and_flag"]
     required_features: dict[str, str]
+    # Master Guidance Hard Gate & Guardrail Controls (safe defaults):
+    exclude_distressed: bool = True  # exclude REO, Short Sale, Foreclosure, cash-only fixers
+    enforce_55_plus: bool = True  # separate 55+ age-restricted communities from non-restricted
+    require_story_match: bool = True  # when both subject and comp report stories, require match
+    require_sub_type_match: bool = True  # never mix SFR with mobile/manufactured/condo
+    enforce_foundation_compatibility: bool = True  # Slab vs Crawl Space / Pier & Beam
+    require_school_district_match: bool = True  # require same ISD when both are known
+    require_water_sewer_match: bool = True  # never mix City Sewer with Septic when both are known
+    max_active_dom: int = Field(default=365, gt=0)  # filter out stale Active listings over max DOM
 
 
 class EscalationSettings(Strict):

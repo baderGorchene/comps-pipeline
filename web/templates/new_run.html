@@ -256,6 +256,26 @@
               <small class="hint wide">Coordinates are optional if your MLS CSV includes a reported Distance column.</small>
             </div>
           </div>
+
+          <details class="sub-box" style="cursor:pointer;">
+            <summary class="sub-box-head" style="list-style:none;">
+              <span class="sub-box-num">D</span>
+              <span>UAD 3.6 &amp; Master Guidance Parameters (Optional)</span>
+              <span class="badge-mono" style="margin-left:auto;font-size:.7rem;">EXPAND</span>
+            </summary>
+            <div class="grid-fields" style="margin-top:.75rem;">
+              {% include "field.html" with field=subject.transaction_type %}
+              {% include "field.html" with field=subject.contract_price %}
+              {% include "field.html" with field=subject.construction_status wide=True %}
+              {% include "field.html" with field=subject.stories %}
+              {% include "field.html" with field=subject.foundation_type %}
+              {% include "field.html" with field=subject.condition %}
+              {% include "field.html" with field=subject.quality %}
+              {% include "field.html" with field=subject.school_district %}
+              {% include "field.html" with field=subject.water_sewer %}
+              {% include "field.html" with field=subject.garage_spaces %}
+            </div>
+          </details>
         </div>
       </section>
     </div>

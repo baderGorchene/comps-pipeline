@@ -12,17 +12,21 @@ SHORTLIST_COLUMNS = [
     "pool",
     "rank",
     "mls_number",
+    "address",
     "status",
     "close_price",
+    "contract_date",
     "close_date",
     "list_price",
     "living_area",
     "year_built",
+    "condition_quality",
     "lot_size_sqft",
     "lot_acres",
     "bedrooms",
     "baths_full",
     "baths_half",
+    "garage",
     "subdivision_raw",
     "subdivision_normalized",
     "subdivision_tier",
@@ -34,6 +38,8 @@ SHORTLIST_COLUMNS = [
     "latitude",
     "longitude",
     "foundation_type",
+    "selection_rationale",
+    "deselection_reason",
     "public_remarks",
 ]
 DISPLAY_DECIMALS = {"distance_miles": 3, "gla_diff_pct": 2, "lot_diff_pct": 2, "lot_acres": 4}
@@ -43,6 +49,8 @@ OUTPUT_FILES = (
     "shortlist.json",
     "final_selection.csv",
     "final_selection.json",
+    "analyzed_not_used.csv",
+    "analyzed_not_used.json",
     "excluded.csv",
     "flags.json",
     "flags.csv",
@@ -82,6 +90,16 @@ def shortlist_rows(shortlist: list[Comp], flags: list[Flag]) -> list[dict[str, A
             if name == "lot_acres":
                 acres = c.lot_acres()
                 value = None if acres is None else float(acres)
+            elif name == "address":
+                value = c.address_display()
+            elif name == "contract_date":
+                value = c.contract_date_display()
+            elif name == "condition_quality":
+                value = c.condition_quality_display()
+            elif name == "garage":
+                value = c.garage_display()
+            elif name in ("selection_rationale", "deselection_reason"):
+                value = getattr(c, name)
             else:
                 value = getattr(c, name).value
             row[name] = _display(name, value)
@@ -113,9 +131,11 @@ def write_outputs(
     flags: list[Flag],
     audit: list[AuditEntry],
     raw_rows: dict[int, dict[str, Any]],
+    analyzed_not_used: list[Comp] | None = None,
 ) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = {name: out_dir / name for name in OUTPUT_FILES if name != "run_manifest.json"}
+    unused = analyzed_not_used if analyzed_not_used is not None else []
 
     _write_csv(
         paths["shortlist.csv"], [*SHORTLIST_COLUMNS, "flags"], shortlist_rows(shortlist, flags)
@@ -125,6 +145,12 @@ def write_outputs(
         paths["final_selection.csv"], [*SHORTLIST_COLUMNS, "flags"], shortlist_rows(final, flags)
     )
     _write_json(paths["final_selection.json"], [c.model_dump(mode="json") for c in final])
+    _write_csv(
+        paths["analyzed_not_used.csv"],
+        [*SHORTLIST_COLUMNS, "flags"],
+        shortlist_rows(unused, flags),
+    )
+    _write_json(paths["analyzed_not_used.json"], [c.model_dump(mode="json") for c in unused])
     excluded_cols = ["source_row", "mls_number", "stage", "reasons"] + [
         f for f in STANDARD_FIELDS if f != "mls_number"
     ]
