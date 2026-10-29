@@ -1,9 +1,9 @@
 """Read the raw CSV as text and rename client headers to standard field names."""
 
+import csv
+import io
 from pathlib import Path
 from typing import Any
-
-import pandas as pd
 
 # The pipeline cannot shortlist without these columns.
 # close_price/close_date are only needed for sold rows, so they are checked per row.
@@ -14,19 +14,29 @@ class InputError(Exception):
     """Bad input file (unreadable CSV, missing column, invalid subject)."""
 
 
-def read_csv(path: Path) -> pd.DataFrame:
-    """dtype=str and no NA guessing: every cell stays exactly the text in the file.
-
-    UTF-8 first; MLS exports saved by Excel on Windows are often cp1252 (curly quotes).
-    """
+def read_csv(path: Path) -> list[dict[str, str]]:
+    """Every cell stays the exact text in the file (UTF-8 first, then Windows cp1252)."""
     try:
         try:
-            return pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
+            text = Path(path).read_text(encoding="utf-8-sig")
         except UnicodeDecodeError:
-            return pd.read_csv(path, dtype=str, keep_default_na=False, encoding="cp1252")
+            text = Path(path).read_text(encoding="cp1252")
     except FileNotFoundError as e:
         raise InputError(f"CSV not found: {path}") from e
-    except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as e:
+    except (OSError, UnicodeDecodeError) as e:
+        raise InputError(f"Cannot read CSV {path}: {e}") from e
+    try:
+        reader = csv.reader(io.StringIO(text))
+        raw_headers = next(reader, None)
+        if not raw_headers:
+            raise InputError(f"Cannot read CSV {path}: empty file")
+        headers = [h if h else f"Unnamed: {i}" for i, h in enumerate(raw_headers)]
+        return [
+            {headers[i]: (row[i] if i < len(row) else "") for i in range(len(headers))}
+            for row in reader
+            if any(row)
+        ]
+    except csv.Error as e:
         raise InputError(f"Cannot read CSV {path}: {e}") from e
 
 
@@ -45,9 +55,9 @@ def suggest_mapping(headers: list[str], mapping: dict[str, list[str]]) -> dict[s
     return found
 
 
-def map_rows(df: pd.DataFrame, mapping: dict[str, list[str]]) -> list[dict[str, Any]]:
+def map_rows(rows: list[dict[str, str]], mapping: dict[str, list[str]]) -> list[dict[str, Any]]:
     """One dict per CSV row: standard fields as raw strings, unmapped columns under 'extras'."""
-    headers = list(df.columns)
+    headers = list(rows[0].keys()) if rows else []
     found = suggest_mapping(headers, mapping)
     missing = [f for f in REQUIRED_COLUMNS if f not in found]
     if missing:
@@ -57,9 +67,9 @@ def map_rows(df: pd.DataFrame, mapping: dict[str, list[str]]) -> list[dict[str, 
             "Add the matching header names to config/column_mapping.yaml."
         )
     mapped = set(found.values())
-    rows = []
-    for record in df.to_dict("records"):
+    out = []
+    for record in rows:
         row: dict[str, Any] = {field: record[header] for field, header in found.items()}
         row["extras"] = {h: v for h, v in record.items() if h not in mapped}
-        rows.append(row)
-    return rows
+        out.append(row)
+    return out

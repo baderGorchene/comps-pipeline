@@ -91,6 +91,7 @@ def select_final(
                         }
                     )
                     chosen, current, improved = trial, new, True
+                    chosen.sort(key=lambda c: c.rank or 0)
                     break
             if improved:
                 break

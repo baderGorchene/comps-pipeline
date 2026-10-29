@@ -77,31 +77,52 @@ def compute_metrics(
     """GLA / age / lot differences. Missing inputs -> null + flag (unless already flagged)."""
     flags: list[Flag] = []
     out = []
+    subj_lot = subject.lot_acres()
     for c in comps:
         gla = _pct_diff(c.living_area.value, subject.living_area)
-        lot = _pct_diff(c.lot_acres(), subject.lot_acres())
+        comp_lot = c.lot_acres()
+        lot = _pct_diff(comp_lot, subj_lot)
         yb, syb = c.year_built.value, subject.year_built
         age = None if yb is None or syb is None else yb - syb
         update = {}
-        for metric, source_field, value in (
-            ("gla_diff_pct", "living_area", None if gla is None else float(gla)),
-            ("age_diff_years", "year_built", age),
-            ("lot_diff_pct", "lot_size_sqft", None if lot is None else float(lot)),
+        for metric, source_field, value, comp_missing, already_flagged in (
+            (
+                "gla_diff_pct",
+                "living_area",
+                None if gla is None else float(gla),
+                c.living_area.value is None,
+                c.living_area.flag is not None,
+            ),
+            (
+                "age_diff_years",
+                "year_built",
+                age,
+                yb is None,
+                c.year_built.flag is not None,
+            ),
+            (
+                "lot_diff_pct",
+                "lot_size_sqft",
+                None if lot is None else float(lot),
+                comp_lot is None,
+                bool(c.lot_size_sqft.flag or c.lot_size_acres.flag),
+            ),
         ):
             if value is not None:
                 update[metric] = Cell(value=value, source=Source.COMPUTED)
-                continue
-            src: Cell = getattr(c, source_field)
-            note = f"{source_field} unknown; sorted last on this key"
-            update[metric] = Cell(
-                source=Source.NONE, flag=FlagReason.MISSING_REQUIRED_FIELD, note=note
-            )
-            if src.flag is None and src.value is None:  # not flagged by an earlier stage yet
-                flags.append(
-                    settings.flag(
-                        FlagReason.MISSING_REQUIRED_FIELD, c.mls_number, note, source_field
-                    )
+            elif not comp_missing:
+                update[metric] = Cell(note=f"subject {source_field} unknown; tied on this key")
+            else:
+                note = f"{source_field} unknown; sorted last on this key"
+                update[metric] = Cell(
+                    source=Source.NONE, flag=FlagReason.MISSING_REQUIRED_FIELD, note=note
                 )
+                if not already_flagged:
+                    flags.append(
+                        settings.flag(
+                            FlagReason.MISSING_REQUIRED_FIELD, c.mls_number, note, source_field
+                        )
+                    )
         out.append(c.model_copy(update=update))
     return out, flags
 
@@ -122,7 +143,9 @@ def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
     distance = c.distance_miles.value
     buckets = {
         "subdivision": MISSING if tier is None else (0, tier),
-        "distance": _bucket(None if distance is None else Fraction(distance), bands.distance_miles),
+        "distance": _bucket(
+            None if distance is None else Fraction(str(distance)), bands.distance_miles
+        ),
         "gla": _bucket(_pct_diff(c.living_area.value, subject.living_area), bands.gla_pct),
         "age": _bucket(c.age_diff_years.value, bands.age_years),
         "lot": _bucket(_pct_diff(c.lot_acres(), subject.lot_acres()), bands.lot_pct),
@@ -138,7 +161,11 @@ def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
 
 
 def _top_exclusion_rule(prior_audit: list[AuditEntry]) -> tuple[str, int] | None:
-    counts = Counter(a.rule for a in prior_audit if a.decision == Decision.EXCLUDED and a.rule)
+    counts = Counter(
+        a.rule
+        for a in prior_audit
+        if a.stage == "hard_filters" and a.decision == Decision.EXCLUDED and a.rule
+    )
     if not counts:
         return None
     return min(counts.items(), key=lambda kv: (-kv[1], kv[0]))  # most rows, then name

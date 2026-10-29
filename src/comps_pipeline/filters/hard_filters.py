@@ -199,12 +199,16 @@ FILTERS: tuple[Callable[[list[Comp], Subject, Settings], FilterResult], ...] = (
 def apply_hard_filters(comps: list[Comp], subject: Subject, settings: Settings) -> StageOutput:
     out = StageOutput()
     failures: dict[str, list[str]] = {}
+    raw_audit: list[AuditEntry] = []
     for fn in FILTERS:
         res = fn(comps, subject, settings)
-        out.audit.extend(res.audit)
+        raw_audit.extend(res.audit)
         for a in res.audit:
             if a.decision == Decision.EXCLUDED and a.mls_number is not None:
                 failures.setdefault(a.mls_number, []).append(f"{a.rule}: {a.detail['message']}")
+    out.audit.extend(
+        a for a in raw_audit if a.decision != Decision.FLAGGED or a.mls_number not in failures
+    )
     for c in comps:
         if c.mls_number in failures:
             out.excluded.append(Excluded(c.source_row, c.mls_number, STAGE, failures[c.mls_number]))

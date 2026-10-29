@@ -1,5 +1,6 @@
-"""Forms for one run (MLS export, subject property, rule overrides) and full configuration."""
+"""Forms for one run (MLS export, subject property) and full pipeline configuration."""
 
+import copy
 from typing import Any
 
 import yaml
@@ -147,7 +148,13 @@ def text_to_steps(text: str) -> list[dict[str, Any]]:
             if "=" not in part:
                 raise forms.ValidationError(f"Line {n}: write each change as setting = value.")
             key, value = (p.strip() for p in part.split("=", 1))
-            step[key] = yaml.safe_load(value)
+            try:
+                parsed = yaml.safe_load(value)
+            except yaml.YAMLError as e:
+                raise forms.ValidationError(f"Line {n}: invalid value {value!r} ({e}).") from e
+            if not key or parsed is None or isinstance(parsed, (dict, list)):
+                raise forms.ValidationError(f"Line {n}: write each change as setting = value.")
+            step[key] = parsed
         steps.append(step)
     return steps
 
@@ -235,7 +242,6 @@ class RulesForm(forms.Form):
     )
     status_sold = forms.CharField(label="Sold status codes")
     status_listing = forms.CharField(label="Active / option / pending codes")
-    save_default = forms.BooleanField(label="Save these rules as the default", required=False)
 
     @classmethod
     def initial_from(cls, cfg: dict[str, Any]) -> dict[str, Any]:
@@ -263,7 +269,7 @@ class RulesForm(forms.Form):
     def apply_to(self, cfg: dict[str, Any]) -> dict[str, Any]:
         """A copy of the settings dict with this form's values written in."""
         d = self.cleaned_data
-        cfg = yaml.safe_load(yaml.safe_dump(cfg))  # deep copy of plain data
+        cfg = copy.deepcopy(cfg)
         for k in cfg["filters"]:
             if k in d:
                 cfg["filters"][k] = d[k]

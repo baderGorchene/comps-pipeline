@@ -10,9 +10,12 @@ import yaml
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "web.settings")
 django.setup()
 
+from django.conf import settings as django_settings  # noqa: E402
 from django.test import Client, override_settings  # noqa: E402
 
+from comps_pipeline.config.loader import load_settings  # noqa: E402
 from tests.conftest import CONFIG  # noqa: E402
+from web.forms import ConfigForm  # noqa: E402
 
 SUBJECT = {
     "address": "1708 Hidden Glen Dr, Round Rock, TX 78681",
@@ -26,27 +29,6 @@ SUBJECT = {
     "baths_half": "1",
     "latitude": "30.5083",
     "longitude": "-97.6789",
-}
-RULES = {
-    "gla_bracket_pct": "25",
-    "lot_bracket_pct": "25",
-    "max_distance_miles": "3.0",
-    "sale_date_max_months": "12",
-    "subdivision_min_score": "90",
-    "missing_gla": "exclude",
-    "missing_lot": "keep_and_flag",
-    "missing_distance": "exclude",
-    "missing_close_date": "exclude",
-    "shortlist_size": "30",
-    "min_shortlist_size": "20",
-    "listing_shortlist_size": "10",
-    "escalation": "max_distance_miles = 4\nmax_distance_miles = 5\ngla_bracket_pct = 30",
-    "hierarchy": "subdivision, distance, gla, age, lot, beds, baths",
-    "sold_count": "5",
-    "listing_count": "1",
-    "bracket_attributes": ["gla", "lot", "age", "beds", "baths"],
-    "status_sold": "S, SOLD, CLOSED",
-    "status_listing": "A, ACTIVE, P, PENDING, OPTION PENDING",
 }
 
 
@@ -66,8 +48,15 @@ def client(tmp_path):
 
 
 def _post(client, **extra):
-    data = {"csv_source": "sample", "subject_source": "form", **SUBJECT, **RULES, **extra}
+    data = {"csv_source": "sample", "subject_source": "form", **SUBJECT, **extra}
     return client.post("/", data)
+
+
+def _cfg_post(client, **overrides):
+    cfg = load_settings(django_settings.CONFIG_FILE).model_dump(mode="json")
+    data = ConfigForm.initial_from(cfg)
+    data.update(overrides)
+    return client.post("/config/", data)
 
 
 def test_form_page_loads_with_defaults(client):
@@ -89,6 +78,7 @@ def test_run_from_form_then_results_history_download(client):
     page = client.get(url).content.decode()
     assert "Final selection" in page and "Comp 5" in page and "Listing" in page
     assert "Bracketed on every attribute" in page
+    assert "run.log" in page
     run_id = url.rstrip("/").split("/")[-1]
     assert run_id in client.get("/runs/").content.decode()
     csv_file = client.get(f"/runs/{run_id}/files/final_selection.csv")
@@ -98,18 +88,24 @@ def test_run_from_form_then_results_history_download(client):
 
 
 def test_escalation_is_shown(client):
-    res = _post(client, max_distance_miles="0.05", escalation="max_distance_miles = 3")
+    cfg_res = _cfg_post(client, max_distance_miles="0.05", escalation="max_distance_miles = 3")
+    assert cfg_res.status_code == 302
+    res = _post(client)
     page = client.get(res["Location"]).content.decode()
     assert "Relaxed: distance 3 mi" in page and "Used" in page
 
 
 def test_bad_inputs_are_explained(client):
     page = _post(client, csv_source="upload").content.decode()
-    assert "Choose the CSV exported from your MLS" in page
-    page = _post(client, hierarchy="distance, gla").content.decode()
+    assert "The run did not start" in page and "Choose the CSV exported from your MLS" in page
+    page = _post(client, living_area="").content.decode()
+    assert "The run did not start" in page and "living_area" in page
+    page = _cfg_post(client, hierarchy="distance, gla").content.decode()
     assert "exactly once" in page
-    page = _post(client, escalation="max_distnce_miles = 4").content.decode()
-    assert "The run did not start" in page and "max_distnce_miles" in page
+    page = _cfg_post(client, escalation="max_distnce_miles = 4").content.decode()
+    assert "Configuration could not be saved" in page and "max_distnce_miles" in page
+    page = _cfg_post(client, escalation="max_distance_miles = [unclosed").content.decode()
+    assert "invalid value" in page
 
 
 def test_unknown_run_is_404(client):

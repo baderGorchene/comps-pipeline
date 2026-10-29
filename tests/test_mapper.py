@@ -1,4 +1,3 @@
-import pandas as pd
 import pytest
 
 from comps_pipeline.ingest.mapper import InputError, map_rows, read_csv, suggest_mapping
@@ -17,8 +16,7 @@ MAPPING = {
 def test_read_csv_keeps_text(tmp_path):
     path = tmp_path / "x.csv"
     path.write_text("MLS #,Zip,Note\n00123,07001,NA\n", encoding="utf-8")
-    df = read_csv(path)
-    row = df.iloc[0]
+    row = read_csv(path)[0]
     assert (row["MLS #"], row["Zip"], row["Note"]) == ("00123", "07001", "NA")
 
 
@@ -28,19 +26,26 @@ def test_mapping_is_case_and_whitespace_insensitive():
 
 
 def test_unmapped_columns_go_to_extras():
-    df = pd.DataFrame(
-        [["1", "S", "$1", "1/1/2026", "1500", "X", "Y"]],
-        columns=["MLS #", "Status", "Close Price", "Close Date", "GLA", "Subdivision", "Pool"],
-    )
-    (row,) = map_rows(df, MAPPING)
+    raw = [
+        {
+            "MLS #": "1",
+            "Status": "S",
+            "Close Price": "$1",
+            "Close Date": "1/1/2026",
+            "GLA": "1500",
+            "Subdivision": "X",
+            "Pool": "Y",
+        }
+    ]
+    (row,) = map_rows(raw, MAPPING)
     assert row["living_area"] == "1500"
     assert row["extras"] == {"Pool": "Y"}
 
 
 def test_missing_required_column_lists_available_headers():
-    df = pd.DataFrame([["1", "2"]], columns=["MLS #", "Weird Size"])
+    raw = [{"MLS #": "1", "Weird Size": "2"}]
     with pytest.raises(InputError) as e:
-        map_rows(df, MAPPING)
+        map_rows(raw, MAPPING)
     msg = str(e.value)
     assert "living_area" in msg
     assert "MLS #" in msg and "Weird Size" in msg
@@ -55,4 +60,4 @@ def test_sample_maps_with_repo_mapping(settings):
 def test_cp1252_export_is_read(tmp_path):
     path = tmp_path / "x.csv"
     path.write_bytes("MLS #,Remarks\n1,\u201cquoted\u201d\n".encode("cp1252"))
-    assert read_csv(path).iloc[0]["Remarks"] == "\u201cquoted\u201d"
+    assert read_csv(path)[0]["Remarks"] == "\u201cquoted\u201d"

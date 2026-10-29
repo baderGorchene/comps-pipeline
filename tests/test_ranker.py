@@ -99,3 +99,29 @@ def test_beds_and_baths_break_ties(subject, settings):
     unknown_rooms = comp("C")
     out = rank([unknown_rooms, two_beds_off, one_bath_off], subj, settings, 30)
     assert order(out) == ["B", "A", "C"]
+
+
+def test_distance_bucket_no_float_boundary_drop(subject, settings):
+    # 0.3 as IEEE-754 float is 0.29999999999999998889...; with a 0.1 mi band it must be bucket 3.
+    s = settings.model_copy(
+        update={
+            "ranking": settings.ranking.model_copy(
+                update={
+                    "tolerance_bands": settings.ranking.tolerance_bands.model_copy(
+                        update={"distance_miles": 0.1}
+                    )
+                }
+            )
+        }
+    )
+    a = comp("A", miles=0.30, gla=2200)
+    b = comp("B", miles=0.35, gla=2000)
+    out = rank([a, b], subject, s, 30)
+    assert order(out) == ["B", "A"]
+
+
+def test_missing_subject_year_does_not_flag_comp(subject, settings):
+    subj = subject.model_copy(update={"year_built": None})
+    out = rank([comp("A", year=2005)], subj, settings, 30)
+    assert out.ranked[0].age_diff_years.flag is None
+    assert not [f for f in out.flags if f.mls_number == "A"]

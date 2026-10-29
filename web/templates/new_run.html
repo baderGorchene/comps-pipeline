@@ -358,21 +358,27 @@
     const SAMPLE = {
       id_address: '1708 Hidden Glen Dr, Round Rock, TX 78681',
       id_subdivision: 'Brushy Creek Phase 2',
-      id_living_area: '2150',
-      id_effective_date: '2026-07-01',
-      id_year_built: '2004',
-      id_lot_size_sqft: '8712',
+      id_living_area: '2000',
+      id_effective_date: '2026-10-01',
+      id_year_built: '2005',
+      id_lot_size_sqft: '7800',
       id_lot_size_acres: '',
-      id_bedrooms: '4',
+      id_bedrooms: '3',
       id_baths_full: '2',
       id_baths_half: '1',
-      id_latitude: '30.5315',
-      id_longitude: '-97.7405'
+      id_latitude: '30.5083',
+      id_longitude: '-97.6789'
     };
-    document.getElementById('fill-sample-btn')?.addEventListener('click', function () {
+    function fillSample() {
       Object.entries(SAMPLE).forEach(([id, val]) => {
         const el = document.getElementById(id);
         if (el) el.value = val;
+      });
+    }
+    document.getElementById('fill-sample-btn')?.addEventListener('click', fillSample);
+    document.querySelectorAll('input[name="csv_source"]').forEach(radio => {
+      radio.addEventListener('change', function () {
+        if (this.value === 'sample' && this.checked) fillSample();
       });
     });
     document.getElementById('clear-subject-btn')?.addEventListener('click', function () {

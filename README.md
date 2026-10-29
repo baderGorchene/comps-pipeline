@@ -27,7 +27,8 @@ winget install --id=astral-sh.uv -e
 
 ## Using the app
 
-- **New run:** upload the MLS export (or use the synthetic sample), then type the subject in or upload a `subject.yaml`. The rules on the right start from `config/settings.yaml`. Tick "Save these rules as the default" to write them back (the old file is kept as `settings.yaml.bak`).
+- **New run:** upload the MLS export (or use the synthetic sample), then type the subject in or upload a `subject.yaml`.
+- **Configuration:** edit filtering thresholds, relaxation steps, ranking priorities, column mappings, and subdivision aliases in the web UI (saved to `config/*.yaml` with `.yaml.bak` backups).
 - **Results:** the final 6 laid out like the sales comparison grid, with ▲/▼ against the subject and a bracket check per row; which rule steps were used; the ranked sold and listing shortlists; flags; every excluded row with its reasons; downloads.
 - **Past runs:** every run is kept in `data/output/<run_id>/`.
 
@@ -72,7 +73,6 @@ src/comps_pipeline/
   selection/       final 6 with bracketing
   outputs/         file writers
   pipeline.py      runs the stages in order
-scripts/           synthetic data generator
 tests/             pytest suite
 docs/              architecture, decisions, open questions
 ```
@@ -82,7 +82,6 @@ docs/              architecture, decisions, open questions
 ```powershell
 uv run pytest
 uv run ruff check .
-uv run python scripts/generate_synthetic.py --rows 300 --seed 42 --out data/samples
 ```
 
 See `docs/architecture.md` for how the stages fit together and `docs/open_questions.md` for what we still need from Sam.

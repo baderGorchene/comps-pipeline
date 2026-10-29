@@ -450,6 +450,12 @@
       sale_date_max_months: 'Sale Lookback (months)'
     };
 
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
     function renderVisualSteps() {
       if (!escTextarea || !visualSteps) return;
       const lines = escTextarea.value.split('\n').map(s => s.trim()).filter(Boolean);
@@ -459,7 +465,7 @@
         card.className = 'vstep-card';
         const formatted = line.split(',').map(part => {
           const [k, v] = part.split('=').map(s => s ? s.trim() : '');
-          return '<strong>' + (STEP_NAMES[k] || k) + '</strong> → <code>' + (v || '') + '</code>';
+          return '<strong>' + esc(STEP_NAMES[k] || k) + '</strong> → <code>' + esc(v || '') + '</code>';
         }).join(' · ');
         card.innerHTML =
           '<span class="vstep-num">Step ' + (idx + 1) + '</span>' +
@@ -507,8 +513,8 @@
         li.className = 'hierarchy-item';
         li.innerHTML =
           '<span class="h-rank">0' + (idx + 1) + '</span>' +
-          '<strong class="h-name">' + (LABELS[key] || key) + '</strong>' +
-          '<code class="h-code">' + key + '</code>' +
+          '<strong class="h-name">' + esc(LABELS[key] || key) + '</strong>' +
+          '<code class="h-code">' + esc(key) + '</code>' +
           '<span class="h-controls">' +
             '<button type="button" class="btn-icon" data-dir="-1" ' + (idx === 0 ? 'disabled' : '') + ' title="Move up">↑</button>' +
             '<button type="button" class="btn-icon" data-dir="1" ' + (idx === items.length - 1 ? 'disabled' : '') + ' title="Move down">↓</button>' +

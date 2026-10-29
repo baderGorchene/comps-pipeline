@@ -15,10 +15,14 @@ class ConfigError(Exception):
 
 def _read_yaml(path: Path) -> Any:
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            text = path.read_text(encoding="cp1252")
+        return yaml.safe_load(text) or {}
     except FileNotFoundError as e:
         raise ConfigError(f"Config file not found: {path}") from e
-    except yaml.YAMLError as e:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
         raise ConfigError(f"Invalid YAML in {path}: {e}") from e
 
 

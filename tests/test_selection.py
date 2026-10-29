@@ -80,3 +80,26 @@ def test_subject_missing_attribute_is_skipped(subject, settings):
         update={"selection": settings.selection.model_copy(update={"bracket_attributes": ["beds"]})}
     )
     assert gaps(picks, subject, s) == []  # conftest subject has no bedrooms
+
+
+def test_two_swaps_keep_higher_ranked_comp(subject, settings):
+    # S5 is the only initial pick below on age, so swap 1 replaces S4 with S6 (fixes gla).
+    # Swap 2 brings in S7 (below on gla/lot/age) and must replace S6 (rank 6), not S5 (rank 5).
+    top = [
+        comp("S1", 1, gla=2100, lot=9000, year=2010),
+        comp("S2", 2, gla=2100, lot=9000, year=2010),
+        comp("S3", 3, gla=2100, lot=9000, year=2010),
+        comp("S4", 4, gla=2100, lot=9000, year=2010),
+        comp("S5", 5, gla=2100, lot=9000, year=2000),
+    ]
+    s6 = comp("S6", 6, gla=1900, lot=9000, year=2010)
+    s7 = comp("S7", 7, gla=1900, lot=7000, year=2000)
+    s = settings.model_copy(
+        update={
+            "selection": settings.selection.model_copy(
+                update={"bracket_attributes": ["gla", "lot", "age"]}
+            )
+        }
+    )
+    out = select_final([*top, s6, s7], [comp("L1", 1, pool="listing")], subj(subject), s)
+    assert [c.mls_number for c in out.picks] == ["S1", "S2", "S3", "S5", "S7", "L1"]

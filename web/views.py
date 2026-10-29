@@ -9,7 +9,6 @@ import re
 import shutil
 import tempfile
 from collections import Counter
-from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -23,20 +22,19 @@ from comps_pipeline import pipeline
 from comps_pipeline.config.loader import ConfigError, load_settings, settings_from_dict
 from comps_pipeline.ingest.mapper import InputError
 from comps_pipeline.models import Subject
+from comps_pipeline.models.comp import lot_acres, total_baths
 from comps_pipeline.outputs.writers import OUTPUT_FILES
 from web.forms import (
     ATTRIBUTE_LABELS,
     FIELD_LABELS,
     ConfigForm,
     InputsForm,
-    RulesForm,
     SubjectForm,
 )
 
 FILE_ONLY_KEYS = ("column_mapping", "subdivision_aliases")  # live in their own YAML files
 RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9]{6}(-[0-9]+)?$")
 DOWNLOADS = (*OUTPUT_FILES, "subject.json", "run.log")
-SQFT_PER_ACRE = 43560
 
 RULE_LABELS = {
     "max_distance": "Distance beyond maximum limit",
@@ -75,7 +73,16 @@ def _subject_initial() -> dict[str, Any]:
     src = django_settings.INPUT_SUBJECT
     if not src.exists():
         src = django_settings.SAMPLE_SUBJECT
-    data = yaml.safe_load(src.read_text(encoding="utf-8")) or {}
+    try:
+        try:
+            text = src.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            text = src.read_text(encoding="cp1252")
+        data = yaml.safe_load(text)
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        data = {}
+    if not isinstance(data, dict):
+        return {}
     return {k: v for k, v in data.items() if k in SubjectForm.base_fields}
 
 
@@ -83,12 +90,6 @@ def _backup_and_write(path: Path, data: Any) -> None:
     if path.exists():
         shutil.copy(path, path.with_suffix(".yaml.bak"))
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
-
-
-def _save_default(cfg: dict[str, Any]) -> None:
-    path = django_settings.CONFIG_FILE
-    data = {k: v for k, v in cfg.items() if k not in FILE_ONLY_KEYS}
-    _backup_and_write(path, data)
 
 
 def _save_all_configs(cfg: dict[str, Any]) -> None:
@@ -156,57 +157,49 @@ def new_run(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         inputs = InputsForm(request.POST, request.FILES)
         subject_form = SubjectForm(request.POST)
-        rule_keys = set(RulesForm.base_fields) & set(request.POST.keys())
-        if rule_keys:
-            merged = RulesForm.initial_from(cfg)
-            for k in rule_keys:
-                merged[k] = (
-                    request.POST.getlist(k) if k == "bracket_attributes" else request.POST[k]
-                )
-            rules = RulesForm(merged)
-        else:
-            rules = RulesForm(RulesForm.initial_from(cfg))
         subject_ok = inputs.data.get("subject_source") == "yaml" or subject_form.is_valid()
-        if inputs.is_valid() and subject_ok and rules.is_valid():
+        if inputs.is_valid() and subject_ok:
             try:
-                settings = settings_from_dict(rules.apply_to(cfg), source="the rules form")
-                tmp = Path(tempfile.mkdtemp(prefix="comps_"))
-                subject_path = tmp / "subject.yaml"
-                if inputs.cleaned_data["subject_source"] == "yaml":
-                    subject_path.write_bytes(inputs.cleaned_data["subject_file"].read())
-                else:
-                    data = subject_form.subject_dict()
-                    Subject.model_validate(data)
-                    subject_path.write_text(yaml.safe_dump(data), encoding="utf-8")
-                if inputs.cleaned_data["csv_source"] == "sample":
-                    csv_path = django_settings.SAMPLE_CSV
-                else:
-                    csv_path = tmp / "export.csv"
-                    with csv_path.open("wb") as f:
-                        for chunk in inputs.cleaned_data["csv_file"].chunks():
-                            f.write(chunk)
-                result = _run_pipeline(csv_path, subject_path, settings)
-                if rules.cleaned_data["save_default"]:
-                    _save_default(rules.apply_to(cfg))
+                settings = load_settings(django_settings.CONFIG_FILE)
+                with tempfile.TemporaryDirectory(prefix="comps_") as tmp_dir:
+                    tmp = Path(tmp_dir)
+                    subject_path = tmp / "subject.yaml"
+                    if inputs.cleaned_data["subject_source"] == "yaml":
+                        subject_path.write_bytes(inputs.cleaned_data["subject_file"].read())
+                    else:
+                        data = subject_form.subject_dict()
+                        Subject.model_validate(data)
+                        subject_path.write_text(yaml.safe_dump(data), encoding="utf-8")
+                    if inputs.cleaned_data["csv_source"] == "sample":
+                        csv_path = django_settings.SAMPLE_CSV
+                    else:
+                        upload = inputs.cleaned_data["csv_file"]
+                        safe_name = Path(upload.name).name or "export.csv"
+                        csv_path = tmp / safe_name
+                        with csv_path.open("wb") as f:
+                            for chunk in upload.chunks():
+                                f.write(chunk)
+                    result = _run_pipeline(csv_path, subject_path, settings)
                 return redirect("results", run_id=result.run_id)
             except (ConfigError, InputError) as e:
                 errors.append(str(e))
             except ValidationError as e:
                 errors.append(f"The subject is not valid:\n{e}")
         else:
-            for field_errs in rules.errors.values():
+            for field_errs in inputs.errors.values():
                 errors.extend(field_errs)
+            if not subject_ok:
+                for name, field_errs in subject_form.errors.items():
+                    errors.extend(f"{name}: {e}" for e in field_errs)
     else:
         inputs = InputsForm()
         subject_form = SubjectForm(initial=_subject_initial())
-        rules = RulesForm(initial=RulesForm.initial_from(cfg))
     return render(
         request,
         "new_run.html",
         {
             "inputs": inputs,
             "subject": subject_form,
-            "rules": rules,
             "summary": _cfg_summary(cfg),
             "errors": errors,
         },
@@ -276,33 +269,23 @@ def _v(comp: dict, field: str) -> Any:
     return cell.get("value") if isinstance(cell, dict) else cell
 
 
-def _acres(sqft: Any, acres: Any) -> Fraction | None:
-    if sqft is not None:
-        return Fraction(sqft, SQFT_PER_ACRE)
-    return None if acres is None else Fraction(str(acres))
-
-
-def _baths(full: Any, half: Any) -> Fraction | None:
-    return None if full is None or half is None else full + Fraction(half, 2)
-
-
 def _comp_attr(c: dict, attr: str) -> Any:
     return {
         "gla": lambda: _v(c, "living_area"),
-        "lot": lambda: _acres(_v(c, "lot_size_sqft"), _v(c, "lot_size_acres")),
+        "lot": lambda: lot_acres(_v(c, "lot_size_sqft"), _v(c, "lot_size_acres")),
         "age": lambda: _v(c, "year_built"),
         "beds": lambda: _v(c, "bedrooms"),
-        "baths": lambda: _baths(_v(c, "baths_full"), _v(c, "baths_half")),
+        "baths": lambda: total_baths(_v(c, "baths_full"), _v(c, "baths_half")),
     }[attr]()
 
 
 def _subject_attr(s: dict, attr: str) -> Any:
     return {
         "gla": lambda: s.get("living_area"),
-        "lot": lambda: _acres(s.get("lot_size_sqft"), s.get("lot_size_acres")),
+        "lot": lambda: lot_acres(s.get("lot_size_sqft"), s.get("lot_size_acres")),
         "age": lambda: s.get("year_built"),
         "beds": lambda: s.get("bedrooms"),
-        "baths": lambda: _baths(s.get("baths_full"), s.get("baths_half")),
+        "baths": lambda: total_baths(s.get("baths_full"), s.get("baths_half")),
     }[attr]()
 
 
@@ -660,7 +643,7 @@ def results(request: HttpRequest, run_id: str) -> HttpResponse:
         "review_count": sum(f["severity"] == "REVIEW" for f in flags),
         "counts": manifest["row_counts"],
         "input_name": Path(manifest["input_file"]).name,
-        "downloads": [n for n in DOWNLOADS if (run_dir / n).is_file() and n != "run.log"],
+        "downloads": [n for n in DOWNLOADS if (run_dir / n).is_file()],
     }
     return render(request, "results.html", context)
 

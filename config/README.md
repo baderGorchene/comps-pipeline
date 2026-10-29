@@ -98,4 +98,4 @@ How serious each flag reason is: `INFO`, `REVIEW` or `BLOCKING`. Every reason mu
 | REVIEW | MISSING_REQUIRED_FIELD, INVALID_VALUE, NO_COORDINATES, SUBDIVISION_UNCERTAIN, CRITERIA_RELAXED, NOT_BRACKETED, NO_LISTING_COMP |
 | INFO | DUPLICATE_LISTING, STATUS_NOT_USED |
 
-The web form's "Save these rules as the default" rewrites `settings.yaml` without these comments. The previous version is kept as `settings.yaml.bak`.
+Saving on the Configuration page rewrites `settings.yaml`, `column_mapping.yaml`, and `subdivision_aliases.yaml` without these comments. The previous versions are kept as `*.yaml.bak`.

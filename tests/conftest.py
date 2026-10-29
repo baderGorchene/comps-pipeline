@@ -1,5 +1,4 @@
 import datetime as dt
-import sys
 from pathlib import Path
 
 import pytest
@@ -11,7 +10,6 @@ from comps_pipeline.models import Cell, Comp, Source, Subject
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "config" / "settings.yaml"
 SAMPLES = ROOT / "data" / "samples"
-sys.path.insert(0, str(ROOT / "scripts"))
 
 
 @pytest.fixture

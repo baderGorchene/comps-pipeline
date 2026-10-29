@@ -58,11 +58,17 @@ class RunResult:
 
 def load_subject(path: Path) -> Subject:
     try:
-        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        try:
+            text = Path(path).read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            text = Path(path).read_text(encoding="cp1252")
+        data = yaml.safe_load(text)
     except FileNotFoundError as e:
         raise InputError(f"Subject file not found: {path}") from e
-    except yaml.YAMLError as e:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
         raise InputError(f"Invalid YAML in subject file {path}: {e}") from e
+    if not isinstance(data, dict):
+        raise InputError(f"Invalid subject file {path}: expected a YAML mapping")
     try:
         return Subject.model_validate(data)
     except ValidationError as e:
@@ -126,9 +132,10 @@ def run(
     with timer.stage("load_inputs"):
         subject = load_subject(subject_file)
     with timer.stage("ingest"):
-        df = read_csv(input_csv)
-        rows = map_rows(df, settings.column_mapping)
-        mapping = suggest_mapping(list(df.columns), settings.column_mapping)
+        raw = read_csv(input_csv)
+        rows = map_rows(raw, settings.column_mapping)
+        headers = list(raw[0].keys()) if raw else []
+        mapping = suggest_mapping(headers, settings.column_mapping)
         audit.append(_summary("ingest", rows=len(rows), column_mapping=mapping))
     raw_rows = dict(enumerate(rows, start=1))
 
