@@ -4,6 +4,27 @@ All notable features, architectural milestones, and fixes in `comps-pipeline` ar
 
 ---
 
+## [2026-11-04] — Master Guidance & UAD 3.6 Alignment, Multi-Module UI & Hugging Face Deployment
+
+### Added
+- **Master Guidance & UAD 3.6 Domain Features (`src/comps_pipeline/`):**
+  - **Module A (Location & Perimeter):** Added support for combined `City, State Zip` strings (`city_state_zip`) in `models/subject.py`, `models/comp.py`, and `ingest/cleaner.py`. Added optional strict `school_district` filtering with case-insensitive matching.
+  - **Module B (Characteristics & Specifications):** Added property taxonomy filters (`property_type`, `property_sub_type`), story brackets (`stories`), foundation matching (`foundation_type`), and normalized UAD 3.6 condition (`C1`–`C6`) and quality (`Q1`–`Q6`) ratings with appraisal penalty matrices in `ranking/ranker.py`.
+  - **Module C (Features & Amenities):** Added pool filtering & ranking prioritization (`pool`), ADU detection (`has_adu`), garage/carport space counts (`garage_spaces`, `carport_spaces`), utility fields (`water_sewer`, `hvac`, `energy_features`, `exterior_features`), and strict 55+ active adult community gating via both structured amenities (`Certified 55+ Community`) and keyword mining in `ingest/remarks.py`.
+  - **Module D (Transaction Context):** Added transaction validation for financing types, seller concessions, ownership interest, and listing terms.
+- **Multi-Module Appraisal Web UI (`web/templates/new_run.html`, `web/forms.py`):**
+  - Restructured the New Run page into 4 accordion-style appraisal sections (Modules A, B, C, and D) matching standard appraisal intake forms.
+  - Added sample prefill buttons (`Fill Round Rock Sample`, `Fill 3100 S 2nd St #33 (Chateau Heights)`, `Clear`) for rapid scenario testing.
+- **Cloud & Container Deployment Ready:**
+  - Added [Dockerfile](file:///d:/upwork/sam%20safak/comps-pipeline/Dockerfile) and [.dockerignore](file:///d:/upwork/sam%20safak/comps-pipeline/.dockerignore) tailored for non-root execution (`user:1000`) on Hugging Face Spaces (port 7860).
+  - Updated [web/settings.py](file:///d:/upwork/sam%20safak/comps-pipeline/web/settings.py) to support `whitenoise` static serving, wild-card hosts, and CSRF trusted origins for Hugging Face Spaces.
+  - Updated [.gitignore](file:///d:/upwork/sam%20safak/comps-pipeline/.gitignore) to exclude local `.claude/` artifacts and runtime `data/*.yaml` files while keeping canonical samples.
+
+### Changed
+- Expanded test suite to **112 passing unit & integration tests** covering UAD 3.6 ratings, 55+ community guards, remarks mining, and multi-module web runs.
+
+---
+
 ## [2026-10-29] — Pipeline Audit Fixes, Hardening & Dependency Slimming
 
 ### Fixed

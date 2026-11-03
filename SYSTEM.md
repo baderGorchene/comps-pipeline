@@ -28,6 +28,8 @@
 
 ```text
 comps-pipeline/
+├── Dockerfile                      # Production Docker container image (HF Spaces port 7860, user 1000)
+├── .dockerignore                   # Docker build exclusions
 ├── run.bat                         # One-click Windows launcher (uv sync + Django server)
 ├── manage.py                       # Django management entry point
 ├── pyproject.toml                  # Dependencies (django, pydantic, pyyaml, rapidfuzz) & tool config
@@ -225,16 +227,26 @@ All CSV files are encoded in `utf-8-sig` (UTF-8 with BOM) so Microsoft Excel on 
 
 ---
 
-## 8. Running & Testing
+## 8. Deployment & Cloud Hosting
+
+The repository includes a ready-to-run [Dockerfile](file:///d:/upwork/sam%20safak/comps-pipeline/Dockerfile) configured specifically for container hosting platforms like **Hugging Face Spaces**:
+- **Non-root user:** Runs as UID `1000` (`user`) with permissions configured for container file generation.
+- **Port:** Exposes port `7860` (the Hugging Face Spaces default).
+- **Static assets:** Automatically served in production using `whitenoise`.
+- **WSGI Runner:** Runs 2 Gunicorn workers with a 120-second timeout for large CSV processing.
+
+---
+
+## 9. Running & Testing
 
 ```powershell
-# Launch the web app on http://127.0.0.1:8000/
+# Launch the web app locally on http://127.0.0.1:8000/
 .\run.bat
 
-# Run the full test suite (102 tests)
-uv run pytest
+# Run the full test suite (112 tests)
+python -m pytest
 
 # Run the linter
-uv run ruff check .
+ruff check .
 ```
 
