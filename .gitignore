@@ -11,3 +11,16 @@ data/output/*
 data/cache/*
 !data/cache/.gitkeep
 config/*.bak
+*.csv
+./data/*.csv
+
+# Ignore YAML files inside data folder (keep sample template)
+data/*.yaml
+data/**/*.yaml
+!data/samples/subject.yaml
+
+# Claude
+.claude/
+
+UPDATES.md
+

@@ -1,18 +1,29 @@
 """Django settings for the local shortlist app. Runs on this machine only; no database."""
 
+import importlib.util
+import os
 import secrets
 from pathlib import Path
 
+_has_whitenoise = importlib.util.find_spec("whitenoise") is not None
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Local single-user tool: a fresh key per launch is fine (nothing is signed long-term).
-SECRET_KEY = secrets.token_urlsafe(50)
-DEBUG = True
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+# Local & deployed settings
+SECRET_KEY = os.environ.get("SECRET_KEY", secrets.token_urlsafe(50))
+DEBUG = os.environ.get("DEBUG", "True").lower() in ("true", "1")
+ALLOWED_HOSTS = ["*"]
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.hf.space",
+    "https://*.huggingface.co",
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+]
 
 INSTALLED_APPS = ["django.contrib.staticfiles", "web"]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    *(["whitenoise.middleware.WhiteNoiseMiddleware"] if _has_whitenoise else []),
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",

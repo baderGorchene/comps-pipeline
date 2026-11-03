@@ -271,7 +271,8 @@ def test_real_mcallen_dataset_runs_end_to_end(tmp_path, settings):
         return
     subj_path = tmp_path / "mcallen_subject.yaml"
     subj = Subject(
-        address="4508 N 1st Ln, McAllen, TX 78504",
+        address="4508 N 1st Ln",
+        city_state_zip="McAllen, TX 78504",
         subdivision="Parkhill Terrace",
         living_area=1404,
         effective_date=dt.date(2026, 4, 18),
@@ -292,3 +293,102 @@ def test_real_mcallen_dataset_runs_end_to_end(tmp_path, settings):
         rows = list(csv.DictReader(f))
     assert len(rows) == len(result.final.analyzed_not_used)
     assert all(r["deselection_reason"].strip() for r in rows)
+
+
+def test_updates_55_plus_community_amenities_and_features(subject, settings):
+    # Tests specific requirements from UPDATES.md Section 2 & 3
+    clean_out = clean(
+        [
+            _raw("C55", extras={"Community Amenities": "Gated Entrance, Certified 55+ Community"}),
+            _raw("CSTD", extras={"Community Amenities": "Sidewalks, Street Lights"}),
+        ],
+        subject,
+        settings,
+    )
+    c55 = next(c for c in clean_out.comps if c.mls_number == "C55")
+    cstd = next(c for c in clean_out.comps if c.mls_number == "CSTD")
+    assert c55.remarks_signals.get("_is_55_plus") is True
+    assert cstd.remarks_signals.get("_is_55_plus") is not True
+
+    # Standard subject (is_55_plus=False) excludes 55+ community property
+    res_std = age_restriction_filter([c55, cstd], subject, settings)
+    assert [c.mls_number for c in res_std.kept] == ["CSTD"]
+
+    # 55+ subject (is_55_plus=True) requires certified 55+ community property
+    subj_55 = subject.model_copy(update={"is_55_plus": True})
+    res_55 = age_restriction_filter([c55, cstd], subj_55, settings)
+    assert [c.mls_number for c in res_55.kept] == ["C55"]
+
+
+def test_updates_pool_and_adu_ranking_priority(subject, settings):
+    # When pool is True on subject, pool comp gets higher priority
+    pool_comp = make_comp("POOL", living_area=2050).model_copy(
+        update={
+            "pool": "sold",
+            "subdivision_tier": Cell(value=0, source="COMPUTED"),
+            "distance_miles": Cell(value=0.5, source="COMPUTED"),
+            "extras": {"Poolyn": "Yes"},
+        }
+    )
+    no_pool_comp = make_comp("NOPOOL", living_area=2000).model_copy(
+        update={
+            "pool": "sold",
+            "subdivision_tier": Cell(value=0, source="COMPUTED"),
+            "distance_miles": Cell(value=0.5, source="COMPUTED"),
+            "extras": {"Poolyn": "No"},
+        }
+    )
+    subj_pool = subject.model_copy(update={"pool": True})
+    out = rank([no_pool_comp, pool_comp], subj_pool, settings, 10, pool="sold")
+    assert [c.mls_number for c in out.ranked] == ["POOL", "NOPOOL"]
+
+    # When has_adu is True on subject, ADU comp gets higher priority
+    adu_comp = make_comp("ADU", living_area=2050).model_copy(
+        update={
+            "pool": "sold",
+            "subdivision_tier": Cell(value=0, source="COMPUTED"),
+            "distance_miles": Cell(value=0.5, source="COMPUTED"),
+            "remarks_signals": {"_has_adu": True},
+        }
+    )
+    no_adu_comp = make_comp("NOADU", living_area=2000).model_copy(
+        update={
+            "pool": "sold",
+            "subdivision_tier": Cell(value=0, source="COMPUTED"),
+            "distance_miles": Cell(value=0.5, source="COMPUTED"),
+            "remarks_signals": {},
+        }
+    )
+    subj_adu = subject.model_copy(update={"has_adu": True})
+    out_adu = rank([no_adu_comp, adu_comp], subj_adu, settings, 10, pool="sold")
+    assert [c.mls_number for c in out_adu.ranked] == ["ADU", "NOADU"]
+
+
+def test_updates_bedr_new_dataset_runs_end_to_end(tmp_path, settings):
+    bedr_csv = ROOT / "data" / "4508 3 mile all properties No Filter 11_01_2026.csv"
+    if not bedr_csv.is_file():
+        return
+    subj_path = tmp_path / "bedr_sample_subject.yaml"
+    subj = Subject(
+        address="3100 S 2nd Street #33",
+        city_state_zip="McAllen, TX 78503",
+        subdivision="Chateau Heights",
+        living_area=3176,
+        effective_date=dt.date(2026, 11, 1),
+        year_built=1981,
+        lot_size_sqft=5953,
+        bedrooms=3,
+        baths_full=3,
+        baths_half=1,
+        stories=2.0,
+        foundation_type="Slab",
+        property_sub_type="Townhouse",
+        school_district="McAllen ISD",
+        garage_spaces=2,
+    )
+    subj_path.write_text(subj.model_dump_json(), encoding="utf-8")
+    result = pipeline.run(bedr_csv, subj_path, settings)
+    assert result.manifest.row_counts["input_rows"] == 1055
+    assert len(result.final.picks) >= 1
+    assert result.final.picks[0].mls_number == "502912"
+

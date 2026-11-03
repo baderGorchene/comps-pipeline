@@ -188,7 +188,8 @@
             </div>
           </div>
           <div class="card-head-tools when-form">
-            <button type="button" class="btn-ghost" id="fill-sample-btn" title="Populate with Round Rock sample subject">Fill Sample</button>
+            <button type="button" class="btn-ghost" id="fill-bedr-btn" title="Populate with Bedr / McAllen reference sample">Fill Bedr Sample</button>
+            <button type="button" class="btn-ghost" id="fill-sample-btn" title="Populate with Round Rock sample">Fill RR Sample</button>
             <button type="button" class="btn-ghost" id="clear-subject-btn" title="Clear all subject fields">Clear</button>
           </div>
         </div>
@@ -214,66 +215,80 @@
         </div>
 
         <div class="when-form subject-sections">
+          <!-- Module A: Location & Geographic Data (UPDATES.md) -->
           <div class="sub-box">
             <div class="sub-box-head">
               <span class="sub-box-num">A</span>
-              <span>Location &amp; Valuation Date</span>
+              <span>Location &amp; Geographic Data (3-Mile Perimeter Search)</span>
               <span class="req-badge">Required</span>
             </div>
             <div class="grid-fields">
               {% include "field.html" with field=subject.address wide=True %}
+              {% include "field.html" with field=subject.city_state_zip %}
+              {% include "field.html" with field=subject.school_district %}
               {% include "field.html" with field=subject.subdivision %}
               {% include "field.html" with field=subject.effective_date %}
+              {% include "field.html" with field=subject.latitude %}
+              {% include "field.html" with field=subject.longitude %}
+              <small class="hint wide">Perimeter search is configured to a 3-mile perimeter. Geolocation coordinates are optional if the MLS export reports Distance.</small>
             </div>
           </div>
 
+          <!-- Module B: Property Characteristics & Specifications (UPDATES.md) -->
           <div class="sub-box">
             <div class="sub-box-head">
               <span class="sub-box-num">B</span>
-              <span>Improvements &amp; Lot Dimensions</span>
+              <span>Property Characteristics &amp; Building Specifications</span>
+              <span class="req-badge">Required</span>
             </div>
             <div class="grid-fields">
+              {% include "field.html" with field=subject.property_type %}
+              {% include "field.html" with field=subject.property_sub_type %}
               {% include "field.html" with field=subject.living_area %}
-              {% include "field.html" with field=subject.year_built %}
               {% include "field.html" with field=subject.lot_size_sqft %}
               {% include "field.html" with field=subject.lot_size_acres %}
-            </div>
-          </div>
-
-          <div class="sub-box">
-            <div class="sub-box-head">
-              <span class="sub-box-num">C</span>
-              <span>Room Count &amp; Geolocation</span>
-            </div>
-            <div class="grid-fields grid-3">
               {% include "field.html" with field=subject.bedrooms %}
               {% include "field.html" with field=subject.baths_full %}
               {% include "field.html" with field=subject.baths_half %}
-            </div>
-            <div class="grid-fields" style="margin-top:.75rem;">
-              {% include "field.html" with field=subject.latitude %}
-              {% include "field.html" with field=subject.longitude %}
-              <small class="hint wide">Coordinates are optional if your MLS CSV includes a reported Distance column.</small>
+              {% include "field.html" with field=subject.stories %}
+              {% include "field.html" with field=subject.year_built %}
+              {% include "field.html" with field=subject.condition %}
+              {% include "field.html" with field=subject.quality %}
             </div>
           </div>
 
+          <!-- Module C: Features & Amenities (UPDATES.md) -->
+          <div class="sub-box">
+            <div class="sub-box-head">
+              <span class="sub-box-num">C</span>
+              <span>Features, Amenities &amp; 55+ Community Status</span>
+            </div>
+            <div class="grid-fields">
+              {% include "field.html" with field=subject.pool %}
+              {% include "field.html" with field=subject.has_adu %}
+              {% include "field.html" with field=subject.foundation_type %}
+              {% include "field.html" with field=subject.is_55_plus %}
+              {% include "field.html" with field=subject.garage_spaces %}
+              {% include "field.html" with field=subject.carport_spaces %}
+              {% include "field.html" with field=subject.community_amenities wide=True %}
+              {% include "field.html" with field=subject.water_sewer %}
+              {% include "field.html" with field=subject.hvac %}
+              {% include "field.html" with field=subject.energy_features %}
+              {% include "field.html" with field=subject.exterior_features %}
+            </div>
+          </div>
+
+          <!-- Module D: Appraisal & Transaction Context (Optional) -->
           <details class="sub-box" style="cursor:pointer;">
             <summary class="sub-box-head" style="list-style:none;">
               <span class="sub-box-num">D</span>
-              <span>UAD 3.6 &amp; Master Guidance Parameters (Optional)</span>
+              <span>Appraisal Transaction Context (Optional)</span>
               <span class="badge-mono" style="margin-left:auto;font-size:.7rem;">EXPAND</span>
             </summary>
             <div class="grid-fields" style="margin-top:.75rem;">
               {% include "field.html" with field=subject.transaction_type %}
               {% include "field.html" with field=subject.contract_price %}
               {% include "field.html" with field=subject.construction_status wide=True %}
-              {% include "field.html" with field=subject.stories %}
-              {% include "field.html" with field=subject.foundation_type %}
-              {% include "field.html" with field=subject.condition %}
-              {% include "field.html" with field=subject.quality %}
-              {% include "field.html" with field=subject.school_district %}
-              {% include "field.html" with field=subject.water_sewer %}
-              {% include "field.html" with field=subject.garage_spaces %}
             </div>
           </details>
         </div>
@@ -376,35 +391,94 @@
 
     // 3. Quick Fill Sample / Clear Subject Buttons
     const SAMPLE = {
-      id_address: '1708 Hidden Glen Dr, Round Rock, TX 78681',
+      id_address: '1708 Hidden Glen Dr',
+      id_city_state_zip: 'Round Rock, TX 78681',
+      id_school_district: 'Round Rock ISD',
       id_subdivision: 'Brushy Creek Phase 2',
-      id_living_area: '2000',
       id_effective_date: '2026-10-01',
+      id_property_type: 'Residential',
+      id_property_sub_type: 'House',
+      id_living_area: '2000',
       id_year_built: '2005',
       id_lot_size_sqft: '7800',
       id_lot_size_acres: '',
       id_bedrooms: '3',
       id_baths_full: '2',
       id_baths_half: '1',
+      id_stories: '1',
+      id_foundation_type: 'Slab',
+      id_pool: '',
+      id_has_adu: '',
+      id_is_55_plus: false,
+      id_garage_spaces: '2',
+      id_carport_spaces: '0',
+      id_water_sewer: 'City Sewer',
       id_latitude: '30.5083',
       id_longitude: '-97.6789'
     };
-    function fillSample() {
-      Object.entries(SAMPLE).forEach(([id, val]) => {
+
+    const BEDR_SAMPLE = {
+      id_address: '3100 S 2nd Street #33',
+      id_city_state_zip: 'McAllen, TX 78503',
+      id_school_district: 'McAllen ISD',
+      id_subdivision: 'Chateau Heights',
+      id_effective_date: '2026-11-01',
+      id_property_type: 'Residential',
+      id_property_sub_type: 'Townhouse',
+      id_living_area: '3176',
+      id_year_built: '1981',
+      id_lot_size_sqft: '5953',
+      id_lot_size_acres: '',
+      id_bedrooms: '3',
+      id_baths_full: '3',
+      id_baths_half: '1',
+      id_stories: '2',
+      id_foundation_type: 'Slab',
+      id_pool: 'no',
+      id_has_adu: 'no',
+      id_is_55_plus: false,
+      id_garage_spaces: '2',
+      id_carport_spaces: '0',
+      id_water_sewer: 'City Sewer, Public Water',
+      id_hvac: 'Central',
+      id_energy_features: 'Double Pane Windows',
+      id_community_amenities: 'Gated Entrance, Pool Privileges, Tennis Available',
+      id_condition: 'C3',
+      id_quality: 'Q3',
+      id_latitude: '',
+      id_longitude: ''
+    };
+
+    function populateForm(data) {
+      Object.entries(data).forEach(([id, val]) => {
         const el = document.getElementById(id);
-        if (el) el.value = val;
+        if (!el) return;
+        if (el.type === 'checkbox') {
+          el.checked = Boolean(val);
+        } else {
+          el.value = val;
+        }
       });
     }
-    document.getElementById('fill-sample-btn')?.addEventListener('click', fillSample);
+
+    document.getElementById('fill-sample-btn')?.addEventListener('click', function () {
+      populateForm(SAMPLE);
+    });
+    document.getElementById('fill-bedr-btn')?.addEventListener('click', function () {
+      populateForm(BEDR_SAMPLE);
+    });
     document.querySelectorAll('input[name="csv_source"]').forEach(radio => {
       radio.addEventListener('change', function () {
-        if (this.value === 'sample' && this.checked) fillSample();
+        if (this.value === 'sample' && this.checked) populateForm(SAMPLE);
       });
     });
     document.getElementById('clear-subject-btn')?.addEventListener('click', function () {
-      Object.keys(SAMPLE).forEach(id => {
+      const allKeys = new Set([...Object.keys(SAMPLE), ...Object.keys(BEDR_SAMPLE)]);
+      allKeys.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.value = '';
+        if (!el) return;
+        if (el.type === 'checkbox') el.checked = false;
+        else el.value = '';
       });
     });
 

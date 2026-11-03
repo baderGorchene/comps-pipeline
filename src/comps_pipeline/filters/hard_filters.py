@@ -249,13 +249,18 @@ def _normalize_sub_type(raw: str) -> str:
         "single family",
         "single family residence",
         "detached",
+        "house",
     }
     if s in sfr_names:
         return "single_family"
+    if "townhouse" in s or "townhome" in s:
+        return "townhouse"
+    if "condo" in s or "condominium" in s:
+        return "condo"
     if any(k in s for k in ("mobile", "manufactured", "modular")):
         return "manufactured"
-    if any(k in s for k in ("condo", "condominium", "townhouse", "townhome")):
-        return "attached"
+    if "apartment" in s:
+        return "apartment"
     return s
 
 

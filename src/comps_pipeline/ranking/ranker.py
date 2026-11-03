@@ -176,6 +176,25 @@ def _contract_price_bucket(c: Comp, subject: Subject) -> tuple[int, int]:
     return _bucket(pct, 5.0)
 
 
+def _pool_priority(c: Comp, subject: Subject) -> int:
+    """Prioritize comps matching the subject's pool status when specified."""
+    if subject.pool is None:
+        return 0
+    p = c.extra_str("Poolyn", "Pool", "Pool Y/N", "Pool Private YN", "Private Pool")
+    if not p:
+        return 1
+    has_pool = p.strip().casefold() in {"yes", "y", "true", "1"}
+    return 0 if has_pool == subject.pool else 1
+
+
+def _adu_priority(c: Comp, subject: Subject) -> int:
+    """Prioritize comps matching the subject's ADU status when specified."""
+    if subject.has_adu is None:
+        return 0
+    comp_has_adu = bool(c.remarks_signals.get("_has_adu") or c.extras.get("_has_adu"))
+    return 0 if comp_has_adu == subject.has_adu else 1
+
+
 def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
     bands = settings.ranking.tolerance_bands
     tier = c.subdivision_tier.value
@@ -196,6 +215,8 @@ def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
         _financing_priority(c),
         *(buckets[k] for k in settings.ranking.hierarchy),
         _contract_price_bucket(c, subject),
+        _pool_priority(c, subject),
+        _adu_priority(c, subject),
         _raw(distance),
         _raw(c.gla_diff_pct.value),
         c.mls_number,

@@ -25,21 +25,39 @@ class Subject(BaseModel):
     baths_full: int | None = Field(default=None, ge=0)
     baths_half: int | None = Field(default=None, ge=0)
     foundation_type: str | None = None
-    # Step 0 Master Guidance Subject Inputs (all optional with safe defaults):
-    transaction_type: Literal["refinance", "purchase"] = "refinance"
-    contract_price: int | None = Field(default=None, gt=0)
-    construction_status: Literal["existing", "new_construction"] = "existing"
-    property_sub_type: str | None = None
+    # Location & Geographic Data (UPDATES.md):
+    city_state_zip: str | None = None  # Combined location: City, State, and Zip Code
+    school_district: str | None = None  # Specific district filter (e.g. McAllen ISD)
+    # Property Characteristics & Specifications:
+    property_type: str | None = "Residential"
+    property_sub_type: str | None = None  # e.g. Townhouse, Single Family / House, Condo
     stories: float | None = Field(default=None, gt=0)
     condition: str | None = None  # e.g. "C1".."C6"
     quality: str | None = None  # e.g. "Q1".."Q6"
-    school_district: str | None = None
-    water_sewer: str | None = None  # e.g. "City Sewer" vs "Septic"
-    garage_spaces: int | None = Field(default=None, ge=0)
+    # Features & Amenities (UPDATES.md):
     pool: bool | None = None
     has_adu: bool | None = None
-    is_55_plus: bool = False
+    is_55_plus: bool = False  # Certified 55+ Age Restricted Community
+    community_amenities: str | None = None
+    water_sewer: str | None = None  # e.g. "City Sewer" vs "Septic"
+    garage_spaces: int | None = Field(default=None, ge=0)
+    carport_spaces: int | None = Field(default=None, ge=0)
+    hvac: str | None = None
+    energy_features: str | None = None
+    exterior_features: str | None = None
+    # Appraisal Transaction Context:
+    transaction_type: Literal["refinance", "purchase"] = "refinance"
+    contract_price: int | None = Field(default=None, gt=0)
+    construction_status: Literal["existing", "new_construction"] = "existing"
     extras: dict[str, Any] = Field(default_factory=dict)
+
+    def full_address(self) -> str:
+        if (
+            self.city_state_zip
+            and self.city_state_zip.strip().casefold() not in self.address.casefold()
+        ):
+            return f"{self.address}, {self.city_state_zip}"
+        return self.address
 
     def lot_acres(self) -> Fraction | None:
         return lot_acres(self.lot_size_sqft, self.lot_size_acres)

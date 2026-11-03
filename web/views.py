@@ -88,7 +88,15 @@ def _subject_initial() -> dict[str, Any]:
         data = {}
     if not isinstance(data, dict):
         return {}
-    return {k: v for k, v in data.items() if k in SubjectForm.base_fields}
+    init: dict[str, Any] = {}
+    for k, v in data.items():
+        if k not in SubjectForm.base_fields:
+            continue
+        if k in ("pool", "has_adu") and isinstance(v, bool):
+            init[k] = "yes" if v else "no"
+        else:
+            init[k] = v
+    return init
 
 
 def _backup_and_write(path: Path, data: Any) -> None:

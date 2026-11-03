@@ -59,7 +59,8 @@ GARAGE_CONVERSION_PATTERN = re.compile(
 # Accessory Dwelling Unit (ADU) / Guest House / Casita detection
 ADU_PATTERN = re.compile(
     r"\b(?:a\.?d\.?u\.?|accessory\s+dwelling|guest\s+house|guest\s+quarters|casita|"
-    r"mother[\s-]+in[\s-]+law\s+(?:suite|quarters)|garage\s+apartment|detached\s+apartment)\b",
+    r"mother[\s-]+in[\s-]+law\s+(?:suite|quarters)|garage\s+apartment|detached\s+apartment|"
+    r"backyard\s+(?:unit|house|living)|additional\s+living\s+unit|second\s+(?:living\s+)?unit)\b",
     re.I,
 )
 
@@ -163,9 +164,21 @@ def analyze_comp_remarks(
     if distressed:
         signals["_distressed_remarks"] = "; ".join(distressed)
 
-    # 2. 55+ Age restriction (check both remarks and subdivision name)
+    # 2. 55+ Age restriction (check community amenities, remarks, subdivision, and structured flags)
+    amenities = comp.extra_str("Community Amenities", "Amenities")
+    is_55_amenity = (
+        "55+" in amenities
+        or "certified 55+" in amenities.casefold()
+        or "senior" in amenities.casefold()
+        or "adult" in amenities.casefold()
+    )
     is_55_extra = _truthy(comp.extra_str("Age Restricted", "55+", "Senior Community"))
-    if AGE_55_PATTERN.search(text) or AGE_55_PATTERN.search(sub_raw) or is_55_extra:
+    if (
+        AGE_55_PATTERN.search(text)
+        or AGE_55_PATTERN.search(sub_raw)
+        or is_55_extra
+        or is_55_amenity
+    ):
         signals["_is_55_plus"] = True
 
     # 3. Non-conforming garage conversion

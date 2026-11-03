@@ -130,21 +130,102 @@ class InputsForm(forms.Form):
 
 
 class SubjectForm(forms.Form):
-    address = forms.CharField(max_length=200)
-    subdivision = forms.CharField(max_length=200)
-    living_area = _int("Living area (sq ft)", 1, 100_000)
-    effective_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
-    year_built = _int("Year built", 1800, 2100, required=False)
-    lot_size_sqft = _int("Lot (sq ft)", 1, 100_000_000, required=False)
-    lot_size_acres = forms.FloatField(
-        label="Lot (acres)", min_value=0.0001, required=False, help_text="Only if no sq ft"
+    # Module A: Location & Geographic Data (UPDATES.md)
+    address = forms.CharField(label="Street address", max_length=200)
+    city_state_zip = forms.CharField(
+        label="City, State, Zip (Combined Location)",
+        max_length=120,
+        required=False,
+        help_text="Single unified location column (e.g. McAllen, TX 78504)",
     )
-    bedrooms = _int("Bedrooms", 0, 50, required=False)
+    school_district = forms.CharField(
+        label="School district (ISD)",
+        max_length=120,
+        required=False,
+        help_text="Target school district (e.g. McAllen ISD)",
+    )
+    subdivision = forms.CharField(label="Subdivision name", max_length=200)
+    effective_date = forms.DateField(
+        label="Valuation effective date", widget=forms.DateInput(attrs={"type": "date"})
+    )
+    latitude = forms.FloatField(label="Latitude", min_value=-90, max_value=90, required=False)
+    longitude = forms.FloatField(label="Longitude", min_value=-180, max_value=180, required=False)
+
+    # Module B: Property Characteristics & Specifications (UPDATES.md)
+    property_type = forms.CharField(
+        label="Property type", max_length=50, initial="Residential", required=False
+    )
+    property_sub_type = forms.ChoiceField(
+        label="Property sub-type",
+        choices=[
+            ("", "Any / Unspecified"),
+            ("House", "Single Family / House"),
+            ("Townhouse", "Townhouse"),
+            ("Condo", "Condominium"),
+            ("Mobile Home", "Mobile / Manufactured Home"),
+        ],
+        required=False,
+    )
+    living_area = _int("Living area (sq ft / GLA)", 1, 100_000)
+    lot_size_sqft = _int("Lot size (sq ft)", 1, 100_000_000, required=False)
+    lot_size_acres = forms.FloatField(
+        label="Lot size (acres)", min_value=0.0001, required=False, help_text="Only if no sq ft"
+    )
+    bedrooms = _int("Total bedrooms", 0, 50, required=False)
     baths_full = _int("Full baths", 0, 50, required=False)
     baths_half = _int("Half baths", 0, 50, required=False)
-    latitude = forms.FloatField(min_value=-90, max_value=90, required=False)
-    longitude = forms.FloatField(min_value=-180, max_value=180, required=False)
-    # Step 0 Master Guidance Subject fields (all optional with safe defaults):
+    stories = forms.FloatField(label="Number of stories", min_value=1, max_value=10, required=False)
+    year_built = _int("Year built", 1800, 2100, required=False)
+    condition = forms.CharField(
+        label="Condition rating (C1–C6)", max_length=10, required=False
+    )
+    quality = forms.CharField(label="Quality rating (Q1–Q6)", max_length=10, required=False)
+
+    # Module C: Features & Amenities (UPDATES.md)
+    pool = forms.ChoiceField(
+        label="Pool",
+        choices=[("", "Any / Unspecified"), ("yes", "Yes (Pool)"), ("no", "No Pool")],
+        required=False,
+    )
+    has_adu = forms.ChoiceField(
+        label="ADU (Accessory Dwelling Unit)",
+        choices=[
+            ("", "Any / Unspecified"),
+            ("yes", "Yes (ADU / Casita)"),
+            ("no", "No ADU"),
+        ],
+        required=False,
+    )
+    foundation_type = forms.CharField(
+        label="Foundation type",
+        max_length=100,
+        required=False,
+        help_text="e.g. Slab, Crawl Space, Pier & Beam",
+    )
+    is_55_plus = forms.BooleanField(
+        label="Certified 55+ Age Restricted Community",
+        required=False,
+        help_text="Requires candidate comps to be certified 55+ community members",
+    )
+    community_amenities = forms.CharField(
+        label="Community amenities",
+        max_length=200,
+        required=False,
+        help_text="e.g. Gated Entrance, Tennis Available, Pool Privileges",
+    )
+    water_sewer = forms.CharField(
+        label="Water / Sewer",
+        max_length=100,
+        required=False,
+        help_text="e.g. City Sewer, Public Water, Septic",
+    )
+    garage_spaces = _int("Garage spaces", 0, 20, required=False)
+    carport_spaces = _int("Carport spaces", 0, 20, required=False)
+    hvac = forms.CharField(label="HVAC", max_length=100, required=False)
+    energy_features = forms.CharField(label="Energy features", max_length=150, required=False)
+    exterior_features = forms.CharField(label="Exterior features", max_length=200, required=False)
+
+    # Module D: Appraisal & Transaction Context (Optional)
     transaction_type = forms.ChoiceField(
         label="Transaction type",
         choices=[("refinance", "Refinance"), ("purchase", "Purchase")],
@@ -161,16 +242,18 @@ class SubjectForm(forms.Form):
         initial="existing",
         required=False,
     )
-    stories = forms.FloatField(label="Stories", min_value=1, max_value=10, required=False)
-    foundation_type = forms.CharField(label="Foundation type", max_length=100, required=False)
-    condition = forms.CharField(label="UAD Condition (C1–C6)", max_length=10, required=False)
-    quality = forms.CharField(label="UAD Quality (Q1–Q6)", max_length=10, required=False)
-    school_district = forms.CharField(label="School district (ISD)", max_length=120, required=False)
-    water_sewer = forms.CharField(label="Water / Sewer", max_length=100, required=False)
-    garage_spaces = _int("Garage spaces", 0, 20, required=False)
 
     def subject_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in self.cleaned_data.items() if v not in (None, "")}
+        d = dict(self.cleaned_data)
+        out: dict[str, Any] = {}
+        for k, v in d.items():
+            if v in (None, ""):
+                continue
+            if k in ("pool", "has_adu"):
+                out[k] = True if v == "yes" else False if v == "no" else None
+            else:
+                out[k] = v
+        return {k: v for k, v in out.items() if v is not None}
 
 
 def steps_to_text(steps: list[dict[str, Any]]) -> str:
