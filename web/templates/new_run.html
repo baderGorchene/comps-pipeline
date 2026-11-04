@@ -13,11 +13,23 @@
         <span class="eyebrow-text">DETERMINISTIC APPRAISAL WORKFLOW</span>
       </div>
       <h1>Build a shortlist</h1>
-      <p class="hero-sub">Upload your MLS export and define the subject property. The pipeline executes six deterministic stages to select <strong>{{ summary.sold_count }} sold comps</strong> and <strong>{{ summary.listing_count }} active/pending listing</strong> that bracket the subject.</p>
+      <p class="hero-sub">Upload your MLS export and define the subject property. The pipeline executes six
+        deterministic stages to select <strong>{{ summary.sold_count }} sold comps</strong> and <strong>{{
+          summary.listing_count }} active/pending listing</strong> that bracket the subject.</p>
     </div>
     <div class="hero-right">
       <a href="{% url 'config' %}" class="btn-studio">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="4" y1="21" x2="4" y2="14" />
+          <line x1="4" y1="10" x2="4" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12" y2="3" />
+          <line x1="20" y1="21" x2="20" y2="16" />
+          <line x1="20" y1="12" x2="20" y2="3" />
+          <line x1="1" y1="14" x2="7" y2="14" />
+          <line x1="9" y1="8" x2="15" y2="8" />
+          <line x1="17" y1="16" x2="23" y2="16" />
+        </svg>
         <span>Pipeline Configuration</span>
         <span class="kbd-hint">→</span>
       </a>
@@ -25,16 +37,21 @@
   </div>
 
   {% if errors %}
-    <div class="alert alert-block" role="alert">
-      <div class="alert-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <strong>The run did not start.</strong>
-      </div>
-      {% for e in errors %}<pre>{{ e }}</pre>{% endfor %}
+  <div class="alert alert-block" role="alert">
+    <div class="alert-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <strong>The run did not start.</strong>
     </div>
+    {% for e in errors %}
+    <pre>{{ e }}</pre>{% endfor %}
+  </div>
   {% endif %}
   {% if inputs.non_field_errors %}
-    <div class="alert alert-block" role="alert">{{ inputs.non_field_errors }}</div>
+  <div class="alert alert-block" role="alert">{{ inputs.non_field_errors }}</div>
   {% endif %}
 
   <!-- Under the Hood Interactive Pipeline Architecture Strip -->
@@ -80,7 +97,8 @@
     </div>
     <div class="arch-detail" id="arch-detail">
       <strong id="arch-detail-title">Stage 01 · CSV Ingestion &amp; Header Mapping:</strong>
-      <span id="arch-detail-desc">Reads your MLS export and automatically maps raw spreadsheet headers to {{ summary.mapped_fields }} standardized appraisal fields defined in Configuration.</span>
+      <span id="arch-detail-desc">Reads your MLS export and automatically maps raw spreadsheet headers to {{
+        summary.mapped_fields }} standardized appraisal fields defined in Configuration.</span>
     </div>
   </section>
 
@@ -100,13 +118,18 @@
         </div>
 
         <div class="switch" role="radiogroup" aria-label="MLS export">
-          {% for radio in inputs.csv_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+          {% for radio in inputs.csv_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label
+              }}</span></label>{% endfor %}
         </div>
 
         <div class="when-upload">
           <label class="dropzone" for="{{ inputs.csv_file.id_for_label }}" id="csv-dropzone">
             <div class="dropzone-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
             </div>
             <div class="dropzone-text">
               <strong id="csv-file-label">Click to select MLS export (.csv) or drag &amp; drop</strong>
@@ -125,7 +148,8 @@
               <span class="badge-mono">SYNTHETIC BENCHMARK</span>
               <strong>Round Rock, TX · 300 MLS Listings</strong>
             </div>
-            <p class="hint">Pre-loaded dataset containing sold comps, active/pending listings, subdivision spelling variations, and boundary cases around Brushy Creek Phase 2.</p>
+            <p class="hint">Pre-loaded dataset containing sold comps, active/pending listings, subdivision spelling
+              variations, and boundary cases around Brushy Creek Phase 2.</p>
             <div class="dataset-stats">
               <div><span>Total Rows</span><strong>300</strong></div>
               <div><span>Target Subdiv</span><strong>Brushy Creek Ph 2</strong></div>
@@ -184,24 +208,28 @@
             <span class="step-pill">STEP 02</span>
             <div>
               <h2>Subject Property</h2>
-              <p class="hint">Target property characteristics that all candidate comps are measured and bracketed against.</p>
+              <p class="hint">Target property characteristics that all candidate comps are measured and bracketed
+                against.</p>
             </div>
           </div>
           <div class="card-head-tools when-form">
-            <button type="button" class="btn-ghost" id="fill-bedr-btn" title="Populate with Bedr / McAllen reference sample">Fill Bedr Sample</button>
-            <button type="button" class="btn-ghost" id="fill-sample-btn" title="Populate with Round Rock sample">Fill RR Sample</button>
-            <button type="button" class="btn-ghost" id="clear-subject-btn" title="Clear all subject fields">Clear</button>
+            <button type="button" class="btn-ghost" id="clear-subject-btn"
+              title="Clear all subject fields">Clear</button>
           </div>
         </div>
 
         <div class="switch" role="radiogroup" aria-label="Subject property">
-          {% for radio in inputs.subject_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+          {% for radio in inputs.subject_source %}<label class="switch-option">{{ radio.tag }}<span>{{
+              radio.choice_label }}</span></label>{% endfor %}
         </div>
 
         <div class="when-yaml">
           <label class="dropzone" for="{{ inputs.subject_file.id_for_label }}">
             <div class="dropzone-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
             </div>
             <div class="dropzone-text">
               <strong>Select a subject.yaml file</strong>
@@ -230,7 +258,8 @@
               {% include "field.html" with field=subject.effective_date %}
               {% include "field.html" with field=subject.latitude %}
               {% include "field.html" with field=subject.longitude %}
-              <small class="hint wide">Perimeter search is configured to a 3-mile perimeter. Geolocation coordinates are optional if the MLS export reports Distance.</small>
+              <small class="hint wide">Perimeter search is configured to a 3-mile perimeter. Geolocation coordinates are
+                optional if the MLS export reports Distance.</small>
             </div>
           </div>
 
@@ -300,13 +329,17 @@
   <div class="command-bar">
     <div class="command-bar-info">
       <span class="status-dot-dark"></span>
-      <span>Ready to execute 6-stage pipeline · Target: <strong>{{ summary.sold_count }} sold + {{ summary.listing_count }} listing</strong></span>
+      <span>Ready to execute 6-stage pipeline · Target: <strong>{{ summary.sold_count }} sold + {{ summary.listing_count
+          }} listing</strong></span>
     </div>
     <div class="command-bar-actions">
       <a href="{% url 'config' %}" class="btn-outline">Settings &amp; Mappings</a>
       <button type="submit" class="primary btn-lg" id="submit-run-btn">
         <span>Build shortlist</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
       </button>
     </div>
   </div>
@@ -319,12 +352,16 @@
     <h2>Running Shortlist Stages</h2>
     <p class="hint">Evaluating MLS export against subject property and configured rules...</p>
     <ol class="live-steps" id="live-steps">
-      <li class="active"><span class="dot"></span><strong>Stage 01:</strong> Ingesting CSV &amp; mapping column headers</li>
-      <li><span class="dot"></span><strong>Stage 02:</strong> Cleaning fields, deduplicating MLS #s &amp; splitting status pools</li>
-      <li><span class="dot"></span><strong>Stage 03:</strong> Computing Haversine distances &amp; normalizing subdivisions</li>
+      <li class="active"><span class="dot"></span><strong>Stage 01:</strong> Ingesting CSV &amp; mapping column headers
+      </li>
+      <li><span class="dot"></span><strong>Stage 02:</strong> Cleaning fields, deduplicating MLS #s &amp; splitting
+        status pools</li>
+      <li><span class="dot"></span><strong>Stage 03:</strong> Computing Haversine distances &amp; normalizing
+        subdivisions</li>
       <li><span class="dot"></span><strong>Stage 04:</strong> Applying hard filter brackets &amp; relaxation steps</li>
       <li><span class="dot"></span><strong>Stage 05:</strong> Ranking candidates across tolerance bands</li>
-      <li><span class="dot"></span><strong>Stage 06:</strong> Selecting final comps &amp; verifying subject bracketing</li>
+      <li><span class="dot"></span><strong>Stage 06:</strong> Selecting final comps &amp; verifying subject bracketing
+      </li>
     </ol>
   </div>
 </div>
@@ -389,94 +426,12 @@
       });
     }
 
-    // 3. Quick Fill Sample / Clear Subject Buttons
-    const SAMPLE = {
-      id_address: '1708 Hidden Glen Dr',
-      id_city_state_zip: 'Round Rock, TX 78681',
-      id_school_district: 'Round Rock ISD',
-      id_subdivision: 'Brushy Creek Phase 2',
-      id_effective_date: '2026-10-01',
-      id_property_type: 'Residential',
-      id_property_sub_type: 'House',
-      id_living_area: '2000',
-      id_year_built: '2005',
-      id_lot_size_sqft: '7800',
-      id_lot_size_acres: '',
-      id_bedrooms: '3',
-      id_baths_full: '2',
-      id_baths_half: '1',
-      id_stories: '1',
-      id_foundation_type: 'Slab',
-      id_pool: '',
-      id_has_adu: '',
-      id_is_55_plus: false,
-      id_garage_spaces: '2',
-      id_carport_spaces: '0',
-      id_water_sewer: 'City Sewer',
-      id_latitude: '30.5083',
-      id_longitude: '-97.6789'
-    };
-
-    const BEDR_SAMPLE = {
-      id_address: '3100 S 2nd Street #33',
-      id_city_state_zip: 'McAllen, TX 78503',
-      id_school_district: 'McAllen ISD',
-      id_subdivision: 'Chateau Heights',
-      id_effective_date: '2026-11-01',
-      id_property_type: 'Residential',
-      id_property_sub_type: 'Townhouse',
-      id_living_area: '3176',
-      id_year_built: '1981',
-      id_lot_size_sqft: '5953',
-      id_lot_size_acres: '',
-      id_bedrooms: '3',
-      id_baths_full: '3',
-      id_baths_half: '1',
-      id_stories: '2',
-      id_foundation_type: 'Slab',
-      id_pool: 'no',
-      id_has_adu: 'no',
-      id_is_55_plus: false,
-      id_garage_spaces: '2',
-      id_carport_spaces: '0',
-      id_water_sewer: 'City Sewer, Public Water',
-      id_hvac: 'Central',
-      id_energy_features: 'Double Pane Windows',
-      id_community_amenities: 'Gated Entrance, Pool Privileges, Tennis Available',
-      id_condition: 'C3',
-      id_quality: 'Q3',
-      id_latitude: '',
-      id_longitude: ''
-    };
-
-    function populateForm(data) {
-      Object.entries(data).forEach(([id, val]) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        if (el.type === 'checkbox') {
-          el.checked = Boolean(val);
-        } else {
-          el.value = val;
-        }
-      });
-    }
-
-    document.getElementById('fill-sample-btn')?.addEventListener('click', function () {
-      populateForm(SAMPLE);
-    });
-    document.getElementById('fill-bedr-btn')?.addEventListener('click', function () {
-      populateForm(BEDR_SAMPLE);
-    });
-    document.querySelectorAll('input[name="csv_source"]').forEach(radio => {
-      radio.addEventListener('change', function () {
-        if (this.value === 'sample' && this.checked) populateForm(SAMPLE);
-      });
-    });
+    // 3. Clear Subject Form
     document.getElementById('clear-subject-btn')?.addEventListener('click', function () {
-      const allKeys = new Set([...Object.keys(SAMPLE), ...Object.keys(BEDR_SAMPLE)]);
-      allKeys.forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
+      const subjectSection = document.querySelector('.when-form');
+      if (!subjectSection) return;
+      const elements = subjectSection.querySelectorAll('input:not([type="radio"]):not([type="hidden"]), select, textarea');
+      elements.forEach(el => {
         if (el.type === 'checkbox') el.checked = false;
         else el.value = '';
       });

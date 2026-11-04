@@ -451,11 +451,11 @@ def test_updates_pool_and_adu_ranking_priority(subject, settings):
     assert [c.mls_number for c in out_adu.ranked] == ["ADU", "NOADU"]
 
 
-def test_updates_bedr_new_dataset_runs_end_to_end(tmp_path, settings):
-    bedr_csv = ROOT / "data" / "4508 3 mile all properties No Filter 11_01_2026.csv"
-    if not bedr_csv.is_file():
+def test_mcallen_dataset_runs_end_to_end(tmp_path, settings):
+    mcallen_csv = ROOT / "data" / "4508 3 mile all properties No Filter 11_01_2026.csv"
+    if not mcallen_csv.is_file():
         return
-    subj_path = tmp_path / "bedr_sample_subject.yaml"
+    subj_path = tmp_path / "subject.yaml"
     subj = Subject(
         address="3100 S 2nd Street #33",
         city_state_zip="McAllen, TX 78503",
@@ -474,7 +474,7 @@ def test_updates_bedr_new_dataset_runs_end_to_end(tmp_path, settings):
         garage_spaces=2,
     )
     subj_path.write_text(subj.model_dump_json(), encoding="utf-8")
-    result = pipeline.run(bedr_csv, subj_path, settings)
+    result = pipeline.run(mcallen_csv, subj_path, settings)
     assert result.manifest.row_counts["input_rows"] == 1055
     assert len(result.final.picks) >= 1
     assert result.final.picks[0].mls_number == "502912"
