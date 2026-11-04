@@ -13,9 +13,7 @@
         <span class="eyebrow-text">DETERMINISTIC APPRAISAL WORKFLOW</span>
       </div>
       <h1>Build a shortlist</h1>
-      <p class="hero-sub">Upload your MLS export and define the subject property. The pipeline executes six
-        deterministic stages to select <strong>{{ summary.sold_count }} sold comps</strong> and <strong>{{
-          summary.listing_count }} active/pending listing</strong> that bracket the subject.</p>
+      <p class="hero-sub">Upload your MLS export and define the subject property. The pipeline executes six deterministic stages to select <strong>{{ summary.sold_count }} sold comps</strong> and <strong>{{ summary.listing_count }} active/pending listing</strong> that bracket the subject.</p>
     </div>
     <div class="hero-right">
       <a href="{% url 'config' %}" class="btn-studio">
@@ -97,8 +95,7 @@
     </div>
     <div class="arch-detail" id="arch-detail">
       <strong id="arch-detail-title">Stage 01 · CSV Ingestion &amp; Header Mapping:</strong>
-      <span id="arch-detail-desc">Reads your MLS export and automatically maps raw spreadsheet headers to {{
-        summary.mapped_fields }} standardized appraisal fields defined in Configuration.</span>
+      <span id="arch-detail-desc">Reads your MLS export and automatically maps raw spreadsheet headers to {{ summary.mapped_fields }} standardized appraisal fields defined in Configuration.</span>
     </div>
   </section>
 
@@ -118,8 +115,7 @@
         </div>
 
         <div class="switch" role="radiogroup" aria-label="MLS export">
-          {% for radio in inputs.csv_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label
-              }}</span></label>{% endfor %}
+          {% for radio in inputs.csv_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
         </div>
 
         <div class="when-upload">
@@ -219,8 +215,7 @@
         </div>
 
         <div class="switch" role="radiogroup" aria-label="Subject property">
-          {% for radio in inputs.subject_source %}<label class="switch-option">{{ radio.tag }}<span>{{
-              radio.choice_label }}</span></label>{% endfor %}
+          {% for radio in inputs.subject_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
         </div>
 
         <div class="when-yaml">
@@ -329,8 +324,7 @@
   <div class="command-bar">
     <div class="command-bar-info">
       <span class="status-dot-dark"></span>
-      <span>Ready to execute 6-stage pipeline · Target: <strong>{{ summary.sold_count }} sold + {{ summary.listing_count
-          }} listing</strong></span>
+      <span>Ready to execute 6-stage pipeline · Target: <strong>{{ summary.sold_count }} sold + {{ summary.listing_count }} listing</strong></span>
     </div>
     <div class="command-bar-actions">
       <a href="{% url 'config' %}" class="btn-outline">Settings &amp; Mappings</a>
