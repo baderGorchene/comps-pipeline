@@ -332,7 +332,14 @@
             <td class="num">{{ r.price }}</td>
             <td class="num">{{ r.gla }}</td>
             <td class="num">{{ r.miles }}</td>
-            <td>{{ r.deselection_reason }}</td>
+            <td>
+              <div>{{ r.deselection_reason }}</div>
+              {% if r.ai_rejection_justification %}
+                <div class="ai-justification" style="margin-top: 6px; font-size: 0.85em; color: #1e40af; background: #eff6ff; padding: 6px 10px; border-radius: 4px; border-left: 3px solid #3b82f6;">
+                  <strong>AI Rejection Justification (v3.6):</strong> {{ r.ai_rejection_justification }}
+                </div>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>

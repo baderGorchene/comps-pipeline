@@ -103,3 +103,81 @@ def test_two_swaps_keep_higher_ranked_comp(subject, settings):
     )
     out = select_final([*top, s6, s7], [comp("L1", 1, pool="listing")], subj(subject), s)
     assert [c.mls_number for c in out.picks] == ["S1", "S2", "S3", "S5", "S7", "L1"]
+
+
+def test_c1_swaps_strictly_preserve_in_sub_quota(subject, settings):
+    from comps_pipeline.models import Cell
+    c1_subj = subject.model_copy(
+        update={
+            "construction_status": "new_construction",
+            "bedrooms": 3,
+            "baths_full": 2,
+            "baths_half": 0,
+        }
+    )
+
+    def _c1_comp(mls, rank, tier, pool="sold", beds=3):
+        return comp(mls, rank, beds=beds, pool=pool).model_copy(
+            update={
+                "subdivision_tier": Cell(value=tier, source="COMPUTED"),
+                "distance_miles": Cell(value=0.5, source="COMPUTED"),
+                "gla_diff_pct": Cell(value=0.0, source="COMPUTED"),
+            }
+        )
+
+    # Initial C1 picks will be: S_IN_1, S_IN_2, S_OUT_1, S_OUT_2 (4 sold) + L_IN_1, L_OUT_1 (2 listings) = 6
+    # S_IN_1 and S_IN_2 both have 4 beds (unbracketed below on beds)
+    sold = [
+        _c1_comp("S_IN_1", 1, 0, beds=4),
+        _c1_comp("S_IN_2", 2, 0, beds=4),
+        _c1_comp("S_OUT_1", 3, 3, beds=4),
+        _c1_comp("S_OUT_2", 4, 3, beds=4),
+        # S_OUT_3 is a competing comp outside subdivision with 2 beds (could fix the bed gap!)
+        _c1_comp("S_OUT_3", 5, 3, beds=2),
+    ]
+    listings = [
+        _c1_comp("L_IN_1", 1, 0, pool="listing", beds=4),
+        _c1_comp("L_OUT_1", 2, 3, pool="listing", beds=4),
+    ]
+
+    s = settings.model_copy(
+        update={
+            "selection": settings.selection.model_copy(update={"bracket_attributes": ["beds"]})
+        }
+    )
+    final = select_final(sold, listings, c1_subj, s)
+    # The swap must replace an out-of-sub comp (S_OUT_2), NEVER an in-sub comp (S_IN_1 or S_IN_2)
+    # because dropping an in-sub comp would drop in-sub solds below 2!
+    picked_mls = [c.mls_number for c in final.picks]
+    in_solds = [c for c in final.picks if c.pool == "sold" and c.subdivision_tier.value in (0, 1)]
+    assert len(in_solds) >= 2
+    assert "S_IN_1" in picked_mls and "S_IN_2" in picked_mls
+    assert "S_OUT_3" in picked_mls  # swapped in for S_OUT_2
+
+
+def test_c1_deficit_flag_when_insufficient_in_sub_or_out_sub(subject, settings):
+    from comps_pipeline.models import Cell
+    c1_subj = subject.model_copy(update={"construction_status": "new_construction"})
+
+    def _c1_comp(mls, rank, tier, pool="sold"):
+        return comp(mls, rank, pool=pool).model_copy(
+            update={
+                "subdivision_tier": Cell(value=tier, source="COMPUTED"),
+                "distance_miles": Cell(value=0.5, source="COMPUTED"),
+                "gla_diff_pct": Cell(value=0.0, source="COMPUTED"),
+            }
+        )
+
+    # Only 1 in-sub sold, 0 in-sub listings
+    sold = [
+        _c1_comp("S_IN_1", 1, 0),
+        _c1_comp("S_OUT_1", 2, 3),
+        _c1_comp("S_OUT_2", 3, 3),
+    ]
+    listings = [
+        _c1_comp("L_OUT_1", 1, 3, pool="listing"),
+    ]
+    final = select_final(sold, listings, c1_subj, settings)
+    reasons = [f.reason for f in final.flags]
+    assert FlagReason.NEW_CONST_SUBDIVISION_DEFICIT in reasons
+

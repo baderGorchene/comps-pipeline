@@ -24,3 +24,5 @@ data/**/*.yaml
 
 UPDATES.md
 
+*.canvas
+*/.obsidian

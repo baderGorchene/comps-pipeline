@@ -4,7 +4,7 @@
 
 `comps-pipeline` is a local, deterministic residential appraisal shortlisting engine and Django web application. Given an MLS (Multiple Listing Service) CSV export and a subject property, it executes a 6-stage pipeline to produce:
 
-- A ranked **Sold Shortlist** (default up to 30 sold comps, minimum 20 before rule relaxation).
+- A ranked **Sold Shortlist** (default 25–30 sold comps based on closeness and quality, minimum 25 before rule relaxation).
 - A ranked **Listing Shortlist** (default up to 10 active, option, or pending listings).
 - A **Final Selection** (default 5 sold comps + 1 active/option/pending listing) that brackets the subject property above and below on configured attributes (`gla`, `lot`, `age`, `beds`, `baths`).
 - A complete, immutable **audit package** (`data/output/<run_id>/`) containing CSV/JSON selections, excluded rows with every failing rule, diagnostic flags, a line-by-line decision log (`audit.jsonl`), and a run manifest with SHA-256 input hashes and stage timings.
@@ -147,11 +147,13 @@ All six hard filters run independently on the same candidate list so an excluded
 
 **Escalation (`filter_with_escalation`):**
 - Level `0` evaluates baseline `filters`.
-- While kept **sold** comps `< run.min_shortlist_size` (default `20`), levels `1..N` apply `escalation.steps` cumulatively:
-  - Step 1: `{ max_distance_miles: 4.0 }`
-  - Step 2: `{ max_distance_miles: 5.0 }`
-  - Step 3: `{ gla_bracket_pct: 30 }`
-  - Step 4: `{ sale_date_max_months: 24 }`
+- While kept **sold** comps `< run.min_shortlist_size` (default `25`), levels `1..N` apply `escalation.steps` cumulatively:
+  - Step 1: `{ max_distance_miles: 2.0 }`
+  - Step 2: `{ max_distance_miles: 3.0 }`
+  - Step 3: `{ max_distance_miles: 4.0 }`
+  - Step 4: `{ max_distance_miles: 5.0 }`
+  - Step 5: `{ gla_bracket_pct: 30 }`
+  - Step 6: `{ sale_date_max_months: 24 }`
 - Each step used emits a `CRITERIA_RELAXED` flag, and all tried levels with their sold/listing counts are stored in `manifest.escalation_attempts`.
 
 ### Stage 5: Tolerance-Band Ranking (`ranking/ranker.py`)

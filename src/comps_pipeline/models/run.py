@@ -21,6 +21,8 @@ class RunManifest(BaseModel):
     stage_durations_s: dict[str, float] = Field(default_factory=dict)
     escalation_level: int = 0  # how many escalation steps were applied
     escalation_attempts: list[dict[str, Any]] = Field(default_factory=list)
+    ai_model_used: str = "gpt-6.1-terra"
+    ai_rejection_count: int = 0
 
 
 @dataclass

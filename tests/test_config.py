@@ -11,6 +11,8 @@ from tests.conftest import CONFIG
 def test_repo_settings_load():
     s = load_settings(CONFIG)
     assert s.filters.gla_bracket_pct == 25
+    assert s.filters.max_distance_miles == 1.0
+    assert (s.run.min_shortlist_size, s.run.shortlist_size) == (25, 30)
     assert s.ranking.hierarchy == ["subdivision", "distance", "gla", "age", "lot", "beds", "baths"]
     assert s.filters_at(0) == s.filters
     last = s.filters_at(len(s.escalation.steps))

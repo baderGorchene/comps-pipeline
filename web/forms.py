@@ -99,6 +99,18 @@ FLAG_DESCRIPTIONS: dict[str, tuple[str, str]] = {
         "Site / View / External Influence",
         "Waterfront, resaca, golf course, or highway/commercial adjacency noted in remarks.",
     ),
+    "LEASED_NEW_BUILD_REVIEW": (
+        "New Construction Lease / Rental Review",
+        "New build property has active lease or rental indicators suggesting C2 occupancy.",
+    ),
+    "INDIVIDUAL_OWNER_NEW_BUILD": (
+        "Individual Owner on New Construction",
+        "New construction property is owned by a private individual rather than a builder/developer.",
+    ),
+    "NEW_CONST_SUBDIVISION_DEFICIT": (
+        "New Construction Subdivision Deficit",
+        "Insufficient in-subdivision sold comps or active listings for new construction appraisal quotas.",
+    ),
 }
 
 

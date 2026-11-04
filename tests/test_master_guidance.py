@@ -265,6 +265,93 @@ def test_step5_new_construction_c1_path_and_table2_audit_log(subject, settings):
     assert all(c.deselection_reason for c in final.analyzed_not_used)
 
 
+def test_c1_shortlist_preserves_underrepresented_outside_tier(subject, settings):
+    """When ranking a large pool of in-sub solds (e.g. 30), rank() must ensure out-of-sub solds
+    are preserved in the shortlist rather than completely crowded out.
+    """
+    c1_subj = subject.model_copy(update={"construction_status": "new_construction"})
+
+    comps = []
+    # 30 inside solds
+    for i in range(1, 31):
+        c = make_comp(f"IN_{i}", living_area=2000, close_price=300000, close_date=dt.date(2026, 5, 1))
+        comps.append(
+            c.model_copy(
+                update={
+                    "pool": "sold",
+                    "subdivision_tier": Cell(value=0, source="COMPUTED"),
+                    "distance_miles": Cell(value=0.1 * i, source="COMPUTED"),
+                }
+            )
+        )
+    # 3 outside solds (which would normally rank after all in-sub comps)
+    for i in range(1, 4):
+        c = make_comp(f"OUT_{i}", living_area=2000, close_price=310000, close_date=dt.date(2026, 5, 1))
+        comps.append(
+            c.model_copy(
+                update={
+                    "pool": "sold",
+                    "subdivision_tier": Cell(value=3, source="COMPUTED"),
+                    "distance_miles": Cell(value=0.5 * i, source="COMPUTED"),
+                }
+            )
+        )
+
+    res = rank(comps, c1_subj, settings, size=30, minimum=25, pool="sold")
+    sl_mls = {c.mls_number for c in res.shortlist}
+    outside_in_sl = [c for c in res.shortlist if c.subdivision_tier.value not in (0, 1)]
+    inside_in_sl = [c for c in res.shortlist if c.subdivision_tier.value in (0, 1)]
+
+    # Shortlist must preserve at least 2 outside solds and at least 2 inside solds!
+    assert len(outside_in_sl) >= 2
+    assert len(inside_in_sl) >= 2
+    assert "OUT_1" in sl_mls and "OUT_2" in sl_mls
+
+
+def test_c1_escalation_triggers_when_in_sub_quota_deficient(subject, settings):
+    """If in-subdivision has < 2 solds at baseline 1.0 mi, escalation must expand distance
+    to find more candidates, and flag CRITERIA_RELAXED or NEW_CONST_SUBDIVISION_DEFICIT.
+    """
+    from comps_pipeline.filters.escalation import filter_with_escalation
+
+    c1_subj = subject.model_copy(update={"construction_status": "new_construction"})
+
+    # Setup: 1 in-sub sold within 1.0 mi, 1 in-sub sold at 1.5 mi (unlocked at step 1: 2.0 mi)
+    # Plus 1 in-sub listing within 1.0 mi, 1 out-of-sub sold within 1.0 mi, 1 out-of-sub listing within 1.0 mi
+    # Total solds = 25 to satisfy min_shortlist_size, but baseline has only 1 in-sub sold!
+    c_in1 = make_comp("IN_1", living_area=2000, close_date=dt.date(2026, 5, 1)).model_copy(
+        update={"pool": "sold", "subdivision_tier": Cell(value=0, source="COMPUTED"), "distance_miles": Cell(value=0.5, source="COMPUTED")}
+    )
+    c_in2 = make_comp("IN_2", living_area=2000, close_date=dt.date(2026, 5, 1)).model_copy(
+        update={"pool": "sold", "subdivision_tier": Cell(value=0, source="COMPUTED"), "distance_miles": Cell(value=1.5, source="COMPUTED")}
+    )
+    c_in_list = make_comp("IN_L", living_area=2000).model_copy(
+        update={"pool": "listing", "subdivision_tier": Cell(value=0, source="COMPUTED"), "distance_miles": Cell(value=0.5, source="COMPUTED")}
+    )
+    c_out_list = make_comp("OUT_L", living_area=2000).model_copy(
+        update={"pool": "listing", "subdivision_tier": Cell(value=3, source="COMPUTED"), "distance_miles": Cell(value=0.5, source="COMPUTED")}
+    )
+
+    out_solds = [
+        make_comp(f"OUT_{i}", living_area=2000, close_date=dt.date(2026, 5, 1)).model_copy(
+            update={"pool": "sold", "subdivision_tier": Cell(value=3, source="COMPUTED"), "distance_miles": Cell(value=0.5, source="COMPUTED")}
+        )
+        for i in range(1, 25)
+    ]
+
+    all_comps = [c_in1, c_in2, c_in_list, c_out_list] + out_solds
+    # Use min_shortlist_size = 10 so total sold count is already met at level 0 (24 out solds + 1 in sold = 25 >= 10)
+    s = settings.model_copy(update={"run": settings.run.model_copy(update={"min_shortlist_size": 10})})
+    res = filter_with_escalation(all_comps, c1_subj, s)
+
+    # Level 0 had only 1 in-sub sold, so it had to escalate to level 1 to include IN_2 (1.5 mi <= 2.0 mi)
+    assert res.level >= 1
+    relaxed_flags = [f for f in res.out.flags if f.reason is FlagReason.CRITERIA_RELAXED]
+    assert len(relaxed_flags) >= 1
+    assert any("new construction subdivision quota" in f.message for f in relaxed_flags)
+
+
+
 def test_real_mcallen_dataset_runs_end_to_end(tmp_path, settings):
     mcallen_csv = ROOT / "data" / "4508 comps all 3 miles.csv"
     if not mcallen_csv.is_file():

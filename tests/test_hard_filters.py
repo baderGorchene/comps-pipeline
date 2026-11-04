@@ -10,6 +10,8 @@ from comps_pipeline.filters.hard_filters import (
     gla_in_bracket,
     lot_filter,
     lot_in_bracket,
+    price_filter,
+    price_in_bracket,
     required_features_filter,
     sale_date_filter,
 )
@@ -61,8 +63,9 @@ def _at(miles):
 
 
 def test_distance_filter(subject, settings):
-    assert distance_filter([_at(3.0)], subject, settings).kept
-    assert not distance_filter([_at(3.0001)], subject, settings).kept
+    limit = settings.filters.max_distance_miles
+    assert distance_filter([_at(limit)], subject, settings).kept
+    assert not distance_filter([_at(limit + 0.0001)], subject, settings).kept
     assert not distance_filter([_at(None)], subject, settings).kept
     s = with_filters(settings, missing_distance="keep_and_flag")
     assert distance_filter([_at(None)], subject, s).kept
@@ -127,3 +130,67 @@ def test_sale_date_window_sold_only(subject, settings):
     assert [c.mls_number for c in res.kept] == ["edge", "L"]  # exactly 12 months is kept
     res = sale_date_filter(comps, subject, with_filters(settings, sale_date_max_months=24))
     assert len(res.kept) == 3
+
+
+@pytest.mark.parametrize(
+    ("price", "inclusive", "kept"),
+    [
+        (200_000, True, True),   # exact lower boundary (50% of 400k)
+        (199_999, True, False),
+        (200_001, True, True),
+        (600_000, True, True),   # exact upper boundary (50% of 400k)
+        (600_001, True, False),
+        (599_999, True, True),
+        (200_000, False, False),
+        (200_001, False, True),
+        (600_000, False, False),
+        (599_999, False, True),
+    ],
+)
+def test_price_boundaries(subject, settings, price, inclusive, kept):
+    subj = subject.model_copy(update={"contract_price": 400_000})
+    s = with_filters(settings, price_bracket_pct=50, price_bracket_inclusive=inclusive)
+    comp = make_comp("1", close_price=price).model_copy(update={"pool": "sold"})
+    res = price_filter([comp], subj, s)
+    assert bool(res.kept) is kept
+
+
+def test_price_outliers_dropped(subject, settings):
+    subj = subject.model_copy(update={"contract_price": 400_000})
+    c_low = make_comp("outlier_low", close_price=100_000).model_copy(update={"pool": "sold"})
+    c_high = make_comp("outlier_high", close_price=2_000_000).model_copy(update={"pool": "sold"})
+    c_good = make_comp("good_comp", close_price=380_000).model_copy(update={"pool": "sold"})
+    c_active = make_comp("good_active", list_price=410_000).model_copy(update={"pool": "listing"})
+    c_active_high = make_comp("active_high", list_price=1_500_000).model_copy(update={"pool": "listing"})
+
+    res = price_filter([c_low, c_high, c_good, c_active, c_active_high], subj, settings)
+    assert [c.mls_number for c in res.kept] == ["good_comp", "good_active"]
+    assert len(res.audit) == 3
+    for a in res.audit:
+        assert a.decision == "EXCLUDED"
+        assert a.rule == "price_bracket"
+
+
+def test_price_missing_handling(subject, settings):
+    subj = subject.model_copy(update={"contract_price": 400_000})
+    comp = make_comp("noprice")
+    # Default is missing_price: exclude
+    res = price_filter([comp], subj, settings)
+    assert not res.kept
+    assert res.audit[0].decision == "EXCLUDED"
+
+    # keep_and_flag
+    s = with_filters(settings, missing_price="keep_and_flag")
+    res2 = price_filter([comp], subj, s)
+    assert len(res2.kept) == 1
+    assert res2.audit[0].decision == "FLAGGED"
+
+
+def test_price_filter_skipped_without_subject_benchmark(subject, settings):
+    # subject fixture has no contract_price or estimated_value
+    assert subject.benchmark_price is None
+    c_low = make_comp("outlier_low", close_price=100_000)
+    c_high = make_comp("outlier_high", close_price=2_000_000)
+    res = price_filter([c_low, c_high], subject, settings)
+    assert len(res.kept) == 2
+

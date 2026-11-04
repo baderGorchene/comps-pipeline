@@ -47,6 +47,8 @@ FLAG_COLUMNS = ["id", "mls_number", "field", "reason", "severity", "origin", "me
 OUTPUT_FILES = (
     "shortlist.csv",
     "shortlist.json",
+    "shortlist_v36.csv",
+    "shortlist_v36.json",
     "final_selection.csv",
     "final_selection.json",
     "analyzed_not_used.csv",
@@ -123,6 +125,27 @@ def excluded_rows(excluded: list[Excluded], raw_rows: dict[int, dict[str, Any]])
     return rows
 
 
+def shortlist_v36_rows(
+    shortlist: list[Comp],
+    final: list[Comp],
+    flags: list[Flag],
+    ai_model_used: str = "gpt-6.1-terra",
+) -> list[dict[str, Any]]:
+    rows = shortlist_rows(shortlist, flags)
+    final_mls = {c.mls_number: f"FINAL_COMP_{i}" for i, c in enumerate(final, 1)}
+    by_comp = {c.mls_number: c for c in shortlist}
+    for row in rows:
+        mls = row["mls_number"]
+        comp = by_comp.get(mls)
+        row["selection_status"] = final_mls.get(mls, "SHORTLIST_REJECTED")
+        row["ai_rejection_justification"] = getattr(comp, "ai_rejection_justification", None) or ""
+        row["ai_model_used"] = (
+            getattr(comp, "ai_model_used", None)
+            or (ai_model_used if mls not in final_mls else "")
+        )
+    return rows
+
+
 def write_outputs(
     out_dir: Path,
     shortlist: list[Comp],
@@ -132,6 +155,7 @@ def write_outputs(
     audit: list[AuditEntry],
     raw_rows: dict[int, dict[str, Any]],
     analyzed_not_used: list[Comp] | None = None,
+    ai_model_used: str = "gpt-6.1-terra",
 ) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = {name: out_dir / name for name in OUTPUT_FILES if name != "run_manifest.json"}
@@ -141,6 +165,34 @@ def write_outputs(
         paths["shortlist.csv"], [*SHORTLIST_COLUMNS, "flags"], shortlist_rows(shortlist, flags)
     )
     _write_json(paths["shortlist.json"], [c.model_dump(mode="json") for c in shortlist])
+
+    # Version 3.6 Data Artifacts
+    v36_cols = [
+        *SHORTLIST_COLUMNS,
+        "selection_status",
+        "ai_rejection_justification",
+        "ai_model_used",
+        "flags",
+    ]
+    _write_csv(
+        paths["shortlist_v36.csv"],
+        v36_cols,
+        shortlist_v36_rows(shortlist, final, flags, ai_model_used),
+    )
+    final_mls = {c.mls_number: f"FINAL_COMP_{i}" for i, c in enumerate(final, 1)}
+    _write_json(
+        paths["shortlist_v36.json"],
+        [
+            {
+                **c.model_dump(mode="json"),
+                "selection_status": final_mls.get(c.mls_number, "SHORTLIST_REJECTED"),
+                "ai_rejection_justification": c.ai_rejection_justification or "",
+                "ai_model_used": getattr(c, "ai_model_used", None) or ai_model_used,
+            }
+            for c in shortlist
+        ],
+    )
+
     _write_csv(
         paths["final_selection.csv"], [*SHORTLIST_COLUMNS, "flags"], shortlist_rows(final, flags)
     )

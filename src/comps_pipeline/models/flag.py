@@ -24,6 +24,9 @@ class FlagReason(StrEnum):
     SOLAR_LEASE_REVIEW = "SOLAR_LEASE_REVIEW"  # leased/financed or unverified solar
     ADU_DETECTED = "ADU_DETECTED"  # accessory dwelling unit / casita / guest house
     SITE_INFLUENCE_NOTE = "SITE_INFLUENCE_NOTE"  # waterfront, resaca, golf, or highway
+    LEASED_NEW_BUILD_REVIEW = "LEASED_NEW_BUILD_REVIEW"  # new build with lease/tenant indicators (C2 vs C1)
+    INDIVIDUAL_OWNER_NEW_BUILD = "INDIVIDUAL_OWNER_NEW_BUILD"  # new build owned by private individual
+    NEW_CONST_SUBDIVISION_DEFICIT = "NEW_CONST_SUBDIVISION_DEFICIT"  # in-sub pool lacks required new build comps
 
 
 class Severity(StrEnum):

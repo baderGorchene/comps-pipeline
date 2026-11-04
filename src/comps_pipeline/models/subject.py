@@ -48,6 +48,7 @@ class Subject(BaseModel):
     # Appraisal Transaction Context:
     transaction_type: Literal["refinance", "purchase"] = "refinance"
     contract_price: int | None = Field(default=None, gt=0)
+    estimated_value: int | None = Field(default=None, gt=0)
     construction_status: Literal["existing", "new_construction"] = "existing"
     extras: dict[str, Any] = Field(default_factory=dict)
 
@@ -64,3 +65,29 @@ class Subject(BaseModel):
 
     def total_baths(self) -> Fraction | None:
         return total_baths(self.baths_full, self.baths_half)
+
+    @property
+    def benchmark_price(self) -> int | None:
+        """Benchmark valuation V_subject for price bracketing.
+
+        Returns contract_price (purchase) or estimated_value (refinance/valuation),
+        falling back to known valuation keys in extras if present.
+        """
+        if self.contract_price is not None:
+            return self.contract_price
+        if self.estimated_value is not None:
+            return self.estimated_value
+        for k in ("estimated_value", "appraised_value", "benchmark_value", "list_price", "target_price"):
+            val = self.extras.get(k)
+            if val is not None:
+                try:
+                    return int(val)
+                except (ValueError, TypeError):
+                    pass
+        return None
+
+    @property
+    def is_new_construction(self) -> bool:
+        return self.construction_status == "new_construction" or (
+            self.condition is not None and self.condition.strip().upper() == "C1"
+        )

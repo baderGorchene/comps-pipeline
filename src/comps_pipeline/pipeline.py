@@ -13,6 +13,7 @@ import yaml
 from pydantic import ValidationError
 
 from comps_pipeline import __version__
+from comps_pipeline.ai.router import AIModelRouter
 from comps_pipeline.config.schema import Settings
 from comps_pipeline.filters.escalation import filter_with_escalation
 from comps_pipeline.filters.geo import compute_distances
@@ -178,6 +179,37 @@ def run(
             by_pick.get(c.mls_number) or by_unused.get(c.mls_number) or c for c in shortlist
         ]
 
+    ai_model_used = "gpt-6.1-terra"
+    with timer.stage("ai_rejection_justifications"):
+        router = AIModelRouter()
+        final_mls = {c.mls_number for c in final.picks}
+        rejections: dict[str, str] = {}
+        for c in final.analyzed_not_used:
+            justification, model = router.generate_rejection_justification(c, subject, final.picks)
+            rejections[c.mls_number] = justification
+            if model != "heuristic_fallback":
+                ai_model_used = model
+
+        final_order = {c.mls_number: f"FINAL_COMP_{i}" for i, c in enumerate(final.picks, 1)}
+        shortlist = [
+            c.model_copy(
+                update={
+                    "ai_rejection_justification": rejections.get(c.mls_number, ""),
+                    "selection_status": final_order.get(c.mls_number, "SHORTLIST_REJECTED"),
+                }
+            )
+            for c in shortlist
+        ]
+        final.analyzed_not_used = [
+            c.model_copy(
+                update={
+                    "ai_rejection_justification": rejections.get(c.mls_number, ""),
+                    "selection_status": "SHORTLIST_REJECTED",
+                }
+            )
+            for c in final.analyzed_not_used
+        ]
+
     for i, f in enumerate(flags, start=1):
         f.id = f"F{i:04d}"
 
@@ -192,6 +224,7 @@ def run(
             audit,
             raw_rows,
             analyzed_not_used=final.analyzed_not_used,
+            ai_model_used=ai_model_used,
         )
         paths["subject.json"] = out_dir / "subject.json"
         paths["subject.json"].write_text(subject.model_dump_json(indent=2), encoding="utf-8")
@@ -218,6 +251,8 @@ def run(
         stage_durations_s=timer.durations,
         escalation_level=escalation.level,
         escalation_attempts=escalation.attempts,
+        ai_model_used=ai_model_used,
+        ai_rejection_count=len(final.analyzed_not_used),
     )
     paths["run_manifest.json"] = write_manifest(out_dir, manifest)
     log.info("run %s written to %s", run_id, out_dir)

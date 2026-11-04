@@ -219,7 +219,7 @@ def select_final(
     """sold / listings: each pool's shortlist in rank order."""
     sel = settings.selection
     out = FinalSelection()
-    c1_mode = subject.construction_status == "new_construction"
+    c1_mode = subject.is_new_construction
 
     if c1_mode and (len(sold) + len(listings) > 0):
         chosen, fixed = _select_c1_new_construction(sold, listings, sel.sold_count)
@@ -237,6 +237,17 @@ def select_final(
         for cand in candidates:
             for i in range(len(chosen) - 1, -1, -1):  # lowest-ranked pick first
                 trial = chosen[:i] + [cand] + chosen[i + 1 :]
+                # In New Construction mode, swaps must preserve the subdivision quotas
+                if c1_mode:
+                    orig_in = sum(c.subdivision_tier.value in (0, 1) for c in chosen)
+                    orig_out = sum(c.subdivision_tier.value not in (0, 1) for c in chosen)
+                    trial_in = sum(c.subdivision_tier.value in (0, 1) for c in trial)
+                    trial_out = sum(c.subdivision_tier.value not in (0, 1) for c in trial)
+                    if orig_in >= 2 and trial_in < 2:
+                        continue
+                    if orig_out >= 1 and trial_out < 1:
+                        continue
+
                 new = gaps(trial + fixed, subject, settings)
                 if set(new) < set(current):
                     out.swaps.append(
@@ -254,6 +265,43 @@ def select_final(
                 break
 
     chosen.sort(key=lambda c: c.rank or 0)
+
+    # Validate New Construction Subdivision Quota
+    if c1_mode:
+        actual_in_sold = sum(c.subdivision_tier.value in (0, 1) for c in chosen)
+        actual_out_sold = sum(c.subdivision_tier.value not in (0, 1) for c in chosen)
+        actual_in_list = sum(c.subdivision_tier.value in (0, 1) for c in fixed)
+        actual_out_list = sum(c.subdivision_tier.value not in (0, 1) for c in fixed)
+        deficits: list[str] = []
+        if actual_in_sold < 2:
+            deficits.append(f"in-subdivision sold ({actual_in_sold} < 2)")
+        if actual_in_list < 1:
+            deficits.append(f"in-subdivision active/pending ({actual_in_list} < 1)")
+        if actual_out_sold < 1:
+            deficits.append(f"out-of-subdivision sold ({actual_out_sold} < 1)")
+        if actual_out_list < 1:
+            deficits.append(f"out-of-subdivision active/pending ({actual_out_list} < 1)")
+        if deficits:
+            msg = (
+                f"Final new construction selection deficit: {'; '.join(deficits)}. "
+                "Guidance requires at least 2 sold + 1 active in-subdivision and 1 sold + 1 active out-of-subdivision."
+            )
+            out.flags.append(settings.flag(FlagReason.NEW_CONST_SUBDIVISION_DEFICIT, None, msg))
+            out.audit.append(
+                AuditEntry(
+                    mls_number=None,
+                    stage=STAGE,
+                    decision=Decision.FLAGGED,
+                    rule=FlagReason.NEW_CONST_SUBDIVISION_DEFICIT.value,
+                    detail={
+                        "message": msg,
+                        "inside_sold": actual_in_sold,
+                        "inside_listing": actual_in_list,
+                        "outside_sold": actual_out_sold,
+                        "outside_listing": actual_out_list,
+                    },
+                )
+            )
 
     # Annotate selection_rationale on Final 6 picks
     swapped_in_for: dict[str, list[str]] = {}

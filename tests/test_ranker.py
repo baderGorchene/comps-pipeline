@@ -125,3 +125,26 @@ def test_missing_subject_year_does_not_flag_comp(subject, settings):
     out = rank([comp("A", year=2005)], subj, settings, 30)
     assert out.ranked[0].age_diff_years.flag is None
     assert not [f for f in out.flags if f.mls_number == "A"]
+
+
+def test_dynamic_shortlist_expands_to_30_when_comps_are_close_and_good(subject, settings):
+    # 35 comps: first 25 are close and good, comps 26-30 are also close (<1 mi) and good, comps 31-35 exist
+    comps = [comp(f"C{i:02d}", miles=0.02 * i, gla=2000 + (10 * (i % 5))) for i in range(1, 36)]
+    out = rank(comps, subject, settings, size=30, minimum=25, pool="sold")
+    assert len(out.shortlist) == 30
+    assert len(out.ranked) == 35
+    assert len(out.excluded) == 5
+
+
+def test_dynamic_shortlist_stops_at_25_when_comps_beyond_are_not_close(subject, settings):
+    # Comps 1-25 are close (<0.5 mi). Comps 26-30 are beyond 1.0 mi (e.g. from escalation to 3 mi)
+    s = settings.model_copy(
+        update={"filters": settings.filters.model_copy(update={"max_distance_miles": 3.0})}
+    )
+    close_comps = [comp(f"C{i:02d}", miles=0.01 * i, gla=2000) for i in range(1, 26)]
+    far_comps = [comp(f"F{i:02d}", miles=1.5 + (0.1 * i), gla=2000) for i in range(26, 31)]
+    out = rank(close_comps + far_comps, subject, s, size=30, minimum=25, pool="sold")
+    assert len(out.shortlist) == 25
+    assert [c.mls_number for c in out.shortlist] == [f"C{i:02d}" for i in range(1, 26)]
+    far_excluded = [e for e in out.excluded if "not close/good enough" in e.reasons[0]]
+    assert len(far_excluded) >= 1

@@ -4,6 +4,31 @@ All notable features, architectural milestones, and fixes in `comps-pipeline` ar
 
 ---
 
+## [2026-11-04] — Architecture & AI Pipeline Specification (Version 3.6)
+
+### Added
+- **AI Model Router & Hot Failover Layer (`src/comps_pipeline/ai/`):**
+  - Added [`AIModelRouter`](file:///d:/upwork/sam%20safak/comps-pipeline/src/comps_pipeline/ai/router.py) connecting primary `gpt-6.1-terra` to immediate fallback `gemini-flash-latest` with zero-downtime hot failover logging (`[AI_ROUTER_FALLBACK_TRIGGERED: gpt-6.1-terra -> gemini-flash-latest]`).
+  - Added structured Pydantic schemas in [`parsers.py`](file:///d:/upwork/sam%20safak/comps-pipeline/src/comps_pipeline/ai/parsers.py) and prompt engineering in [`prompts.py`](file:///d:/upwork/sam%20safak/comps-pipeline/src/comps_pipeline/ai/prompts.py) for lease detection, entity owner classification, and rejection explanations.
+  - Added instantaneous local heuristic fallbacks ensuring full zero-crash reliability during offline operations and test executions.
+- **AI C1 vs. C2 Lease & Tenant Detection (`ingest/remarks.py`):**
+  - Integrated keyword mining and AI lease analysis across remarks; flags properties (`LEASED_NEW_BUILD_REVIEW`) when 2026 / new builds have active lease or rental indicators, re-indexing condition from C1 to C2.
+- **AI Owner Type Classification (`ingest/remarks.py`, `models/comp.py`):**
+  - Automatic entity classification from `Owners Name` into `BUILDER` vs. `INDIVIDUAL`; flags new builds owned by private individuals (`INDIVIDUAL_OWNER_NEW_BUILD`).
+- **New Construction Condition Priority & Bracketing Distribution Quotas (`ranking/ranker.py`, `selection/final.py`):**
+  - Prioritizes verified builder C1 comps over tenant-occupied C2s in Stage 5 ranking.
+  - Enforces the 6-comp quota distribution in Stage 6 (2 Sold + 1 Listing in-subdivision, 1 Sold + 1 Listing out-of-subdivision, 1 Sold remainder).
+- **AI Rejection Justifications & Version 3.6 Data Artifacts (`outputs/writers.py`, `pipeline.py`):**
+  - Added generation of mandatory 1-to-2 sentence plain-English appraisal justifications for all non-selected shortlisted comps.
+  - Generated `shortlist_v36.csv` and `shortlist_v36.json` with `selection_status` (`FINAL_COMP_1`..`FINAL_COMP_6` vs `SHORTLIST_REJECTED`), `ai_rejection_justification`, and `ai_model_used`.
+  - Added UI visualization in `results.html` rendering AI justifications in the "Analyzed, Not Used" workfile table.
+- **1-Mile Baseline Research Range & Dynamic 25–30 Shortlist:**
+  - Configured baseline research range to 1.0 mile before progressive escalation (`2.0` → `3.0` → `4.0` → `5.0` mi → `30%` GLA → `24` mo).
+  - Implemented dynamic shortlisting keeping 25 guaranteed comps and expanding up to 30 based on proximity (< 1.0 mi) and quality metrics.
+- Expanded test suite to **118 passing unit & integration tests** in `tests/test_ai_pipeline.py`.
+
+---
+
 ## [2026-11-04] — Master Guidance & UAD 3.6 Alignment, Multi-Module UI & Hugging Face Deployment
 
 ### Added

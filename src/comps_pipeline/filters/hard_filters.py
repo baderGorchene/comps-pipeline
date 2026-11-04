@@ -140,6 +140,49 @@ def distance_filter(comps: list[Comp], subject: Subject, settings: Settings) -> 
     return res
 
 
+def price_in_bracket(comp_price: int, subject_price: int, pct: int, inclusive: bool) -> bool:
+    """Integer math only: no float rounding at the exact boundary."""
+    low, high = subject_price * (100 - pct), subject_price * (100 + pct)
+    scaled = comp_price * 100
+    return low <= scaled <= high if inclusive else low < scaled < high
+
+
+def price_filter(comps: list[Comp], subject: Subject, settings: Settings) -> FilterResult:
+    """Stage 4.1 Strict Price Bracketing Gate:
+    Applies hard logical price bounds based on subject benchmark price to eliminate
+    statistical outliers (e.g., $100,000 or $2,000,000 comps for a mid-market subject).
+    """
+    rule, f = "price_bracket", settings.filters
+    subj_price = subject.benchmark_price
+    if subj_price is None or f.price_bracket_pct is None:
+        return FilterResult(kept=list(comps))
+
+    res = FilterResult()
+    for c in comps:
+        # Use close_price for sold comps; fallback to list_price (e.g. for active listings)
+        price = (
+            c.close_price.value
+            if c.pool == "sold" and c.close_price.value is not None
+            else (c.close_price.value or c.list_price.value)
+        )
+        if price is None:
+            if f.missing_price == "exclude":
+                res.audit.append(_entry(c, Decision.EXCLUDED, rule, "price unknown"))
+            else:
+                res.kept.append(c)
+                res.audit.append(_entry(c, Decision.FLAGGED, rule, "price unknown, kept"))
+        elif price_in_bracket(price, subj_price, f.price_bracket_pct, f.price_bracket_inclusive):
+            res.kept.append(c)
+        else:
+            op = "inclusive" if f.price_bracket_inclusive else "exclusive"
+            msg = (
+                f"price ${price:,} outside +/-{f.price_bracket_pct}% ({op}) "
+                f"of subject benchmark ${subj_price:,}"
+            )
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg, price=price))
+    return res
+
+
 def subdivision_filter(comps: list[Comp], subject: Subject, settings: Settings) -> FilterResult:
     """Needs subdivision matching to have set subdivision_tier (see matching/subdivision.py)."""
     rule, res = "subdivision_match", FilterResult()
@@ -397,6 +440,7 @@ FILTERS: tuple[Callable[[list[Comp], Subject, Settings], FilterResult], ...] = (
     gla_filter,
     lot_filter,
     distance_filter,
+    price_filter,
     subdivision_filter,
     required_features_filter,
     distressed_filter,

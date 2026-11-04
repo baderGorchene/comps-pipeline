@@ -431,6 +431,10 @@ def _comp_row(c: dict, picked: set[str], flag_counts: dict[str, int]) -> dict:
         "picked": c["mls_number"] in picked,
         "selection_rationale": c.get("selection_rationale") or "",
         "deselection_reason": c.get("deselection_reason") or "",
+        "ai_rejection_justification": c.get("ai_rejection_justification") or "",
+        "selection_status": c.get("selection_status")
+        or ("PICKED" if c["mls_number"] in picked else "SHORTLIST_REJECTED"),
+        "owner_type": c.get("owner_type") or "",
     }
 
 
@@ -608,7 +612,7 @@ def _build_pipeline_trace(
             "summary": (
                 f"Applied baseline rules (GLA ±{f_cfg.get('gla_bracket_pct', 25)}%, "
                 f"Lot ±{f_cfg.get('lot_bracket_pct', 25)}%, "
-                f"Max {f_cfg.get('max_distance_miles', 3.0)} mi, "
+                f"Max {f_cfg.get('max_distance_miles', 1.0)} mi, "
                 f"Sold within {f_cfg.get('sale_date_max_months', 12)} mo). " + relax_note
             ),
             "steps": steps,

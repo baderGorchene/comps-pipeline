@@ -234,6 +234,113 @@ def _top_exclusion_rule(prior_audit: list[AuditEntry]) -> tuple[str, int] | None
     return min(counts.items(), key=lambda kv: (-kv[1], kv[0]))  # most rows, then name
 
 
+def _is_close_and_good(
+    c: Comp,
+    subject: Subject,
+    settings: Settings,
+    base_comp: Comp | None = None,
+) -> tuple[bool, str]:
+    """Check if a comp beyond minimum shortlist size is close and good enough to include.
+
+    Returns (is_good, reason_if_not).
+    """
+    dist = c.distance_miles.value
+    if dist is None:
+        return False, "distance unknown"
+
+    max_close_dist = max(1.0, settings.filters.max_distance_miles)
+    if dist > max_close_dist:
+        return False, f"distance {dist:.2f} mi exceeds close range {max_close_dist:.2f} mi"
+
+    if base_comp and base_comp.distance_miles.value is not None:
+        jump_limit = base_comp.distance_miles.value + (settings.ranking.tolerance_bands.distance_miles * 2)
+        if dist > jump_limit and dist > 0.75:
+            return False, f"distance {dist:.2f} mi jumps significantly past base comp ({base_comp.distance_miles.value:.2f} mi)"
+
+    if c.living_area.value is None or c.gla_diff_pct.value is None:
+        return False, "living area unknown"
+    if abs(c.gla_diff_pct.value) > float(settings.filters.gla_bracket_pct):
+        return False, f"GLA diff {c.gla_diff_pct.value:.1f}% exceeds bracket {settings.filters.gla_bracket_pct}%"
+
+    tier = c.subdivision_tier.value
+    if base_comp and base_comp.subdivision_tier.value in (0, 1):
+        if tier is not None and tier > 2 and dist > 0.5:
+            return False, f"subdivision tier {tier} does not match while base comp is in-subdivision"
+
+    return True, "ok"
+
+
+def _ensure_c1_shortlist_quotas(out: RankOutput, pool: str, size: int) -> None:
+    """Step 4.2 & 5 Master Guidance: In New Construction mode, guarantee that the shortlist
+    preserves at least 2 sold / 1 listing in-subdivision comps and 1 sold / 1 listing out-of-subdivision
+    comps if they are available in the ranked pool, rather than allowing one tier to monopolize
+    the shortlist slots.
+    """
+    if pool == "sold":
+        min_in, min_out = 2, 2  # target at least 2 inside and 2 outside sold for healthy choice
+    else:
+        min_in, min_out = 1, 1  # target at least 1 inside and 1 outside listing
+
+    shortlist_mls = {c.mls_number for c in out.shortlist}
+    inside_sl = [c for c in out.shortlist if c.subdivision_tier.value in (0, 1)]
+    outside_sl = [c for c in out.shortlist if c.subdivision_tier.value not in (0, 1)]
+
+    # If outside is under-represented, promote top outside candidates from out.ranked
+    if len(outside_sl) < min_out:
+        need = min_out - len(outside_sl)
+        candidates = [
+            c
+            for c in out.ranked
+            if c.mls_number not in shortlist_mls and c.subdivision_tier.value not in (0, 1)
+        ]
+        for c in candidates[:need]:
+            # Displace lowest ranked surplus inside comp if inside quota won't be breached
+            if len(inside_sl) > min_in:
+                to_remove = inside_sl.pop()
+                out.shortlist = [x for x in out.shortlist if x.mls_number != to_remove.mls_number]
+                out.shortlist.append(c)
+                shortlist_mls.add(c.mls_number)
+                shortlist_mls.remove(to_remove.mls_number)
+            elif len(out.shortlist) < size:
+                out.shortlist.append(c)
+                shortlist_mls.add(c.mls_number)
+
+    # If inside is under-represented, promote top inside candidates from out.ranked
+    inside_sl = [c for c in out.shortlist if c.subdivision_tier.value in (0, 1)]
+    outside_sl = [c for c in out.shortlist if c.subdivision_tier.value not in (0, 1)]
+    if len(inside_sl) < min_in:
+        need = min_in - len(inside_sl)
+        candidates = [
+            c
+            for c in out.ranked
+            if c.mls_number not in shortlist_mls and c.subdivision_tier.value in (0, 1)
+        ]
+        for c in candidates[:need]:
+            # Displace lowest ranked surplus outside comp if outside quota won't be breached
+            if len(outside_sl) > min_out:
+                to_remove = outside_sl.pop()
+                out.shortlist = [x for x in out.shortlist if x.mls_number != to_remove.mls_number]
+                out.shortlist.append(c)
+                shortlist_mls.add(c.mls_number)
+                shortlist_mls.remove(to_remove.mls_number)
+            elif len(out.shortlist) < size:
+                out.shortlist.append(c)
+                shortlist_mls.add(c.mls_number)
+
+    out.shortlist.sort(key=lambda c: c.rank or 0)
+    final_sl_mls = {c.mls_number for c in out.shortlist}
+    out.excluded = [
+        Excluded(
+            c.source_row,
+            c.mls_number,
+            STAGE,
+            [f"RANK_BEYOND_SHORTLIST: {pool} rank {c.rank} > shortlist size {size}"],
+        )
+        for c in out.ranked
+        if c.mls_number not in final_sl_mls
+    ]
+
+
 def rank(
     comps: list[Comp],
     subject: Subject,
@@ -248,10 +355,34 @@ def rank(
     with_metrics, out.flags = compute_metrics(comps, subject, settings)
     keyed = [(sort_key(c, subject, settings), c) for c in with_metrics]
     keyed.sort(key=lambda kc: kc[0])  # stable sort; mls_number makes every key unique anyway
+    base_comp: Comp | None = None
+    cutoff_reached = False
     for position, (key, c) in enumerate(keyed, start=1):
         stored = [list(k) if isinstance(k, tuple) else k for k in key]
         ranked = c.model_copy(update={"rank": position, "sort_key": stored})
         out.ranked.append(ranked)
+
+        shortlist_candidate = False
+        exclusion_reason = ""
+        if position <= minimum:
+            shortlist_candidate = True
+            if position == minimum:
+                base_comp = ranked
+        elif position <= size and not cutoff_reached and minimum > 0 and pool == "sold":
+            is_good, reason = _is_close_and_good(ranked, subject, settings, base_comp)
+            if is_good:
+                shortlist_candidate = True
+            else:
+                cutoff_reached = True
+                exclusion_reason = (
+                    f"RANK_BEYOND_SHORTLIST: {pool} rank {position} not close/good enough for "
+                    f"shortlist extension ({reason})"
+                )
+        elif position <= size and (minimum == 0 or pool != "sold"):
+            shortlist_candidate = True
+        else:
+            exclusion_reason = f"RANK_BEYOND_SHORTLIST: {pool} rank {position} > shortlist size {size}"
+
         out.audit.append(
             AuditEntry(
                 mls_number=c.mls_number,
@@ -263,11 +394,11 @@ def rank(
                     "sort_key": stored,
                     "pool": pool,
                     "hierarchy": settings.ranking.hierarchy,
-                    "shortlisted": position <= size,
+                    "shortlisted": shortlist_candidate,
                 },
             )
         )
-        if position <= size:
+        if shortlist_candidate:
             out.shortlist.append(ranked)
         else:
             out.excluded.append(
@@ -275,9 +406,12 @@ def rank(
                     c.source_row,
                     c.mls_number,
                     STAGE,
-                    [f"RANK_BEYOND_SHORTLIST: {pool} rank {position} > shortlist size {size}"],
+                    [exclusion_reason or f"RANK_BEYOND_SHORTLIST: {pool} rank {position} > shortlist size {size}"],
                 )
             )
+
+    if subject.is_new_construction:
+        _ensure_c1_shortlist_quotas(out, pool, size)
 
     if len(out.shortlist) < minimum:
         top = _top_exclusion_rule(prior_audit or [])

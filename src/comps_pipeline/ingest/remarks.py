@@ -127,6 +127,36 @@ ISD_PATTERN = re.compile(
 )
 
 
+# Lease / Tenant / STR detection (v3.6 Section 2.1)
+LEASE_PATTERN = re.compile(
+    r"\b(?:leased|tenant\s+occupied|investment\s+property|short\s+term\s+rental|"
+    r"s\.?t\.?r\.?|lease\s+in\s+place|paying\s+\$\d+|tenant\s+rights|current\s+rent)\b",
+    re.I,
+)
+
+BUILDER_KEYWORDS = (
+    "llc",
+    "inc",
+    "corp",
+    "corporation",
+    "ltd",
+    "builders",
+    "builder",
+    "construction",
+    "homes",
+    "properties",
+    "development",
+    "enterprises",
+    "holding",
+    "dr horton",
+    "lennar",
+    "kb home",
+    "pulte",
+    "beazer",
+    "ammo",
+)
+
+
 @dataclass
 class RemarksAnalysis:
     distressed_matches: list[str] = field(default_factory=list)
@@ -299,4 +329,59 @@ def analyze_comp_remarks(
         if m_isd:
             signals["_extracted_isd"] = m_isd.group(1).strip()
 
-    return comp.model_copy(update={"remarks_signals": signals}), flags
+    # 9. AI C1 vs C2 Lease Detection (v3.6 Section 2.1)
+    m_lease = LEASE_PATTERN.search(text)
+    if m_lease:
+        snippet = m_lease.group(0)
+        signals["_is_leased"] = True
+        signals["_lease_snippet"] = snippet
+        yb = comp.year_built.value
+        eff_year = subject.effective_date.year if subject.effective_date else 2026
+        is_new = (yb is not None and yb >= eff_year) or signals.get("_detected_condition") == "C1"
+        if is_new:
+            msg = (
+                f"New build (year built {yb or eff_year}) has active lease/rental indicators in remarks ({snippet!r}); "
+                "represents C2 tenant occupancy rather than pristine builder C1 delivery."
+            )
+            flags.append(
+                settings.flag(
+                    FlagReason.LEASED_NEW_BUILD_REVIEW,
+                    comp.mls_number,
+                    msg,
+                    field="public_remarks",
+                    evidence=snippet,
+                )
+            )
+            signals["_detected_condition"] = "C2"
+
+    # 10. AI Owner Type Classification (v3.6 Section 2.2)
+    owner_name = comp.extra_str("Owners Name", "Owner Name", "Owner", "OwnerName")
+    owner_type: str | None = None
+    if owner_name:
+        norm_owner = owner_name.casefold()
+        is_builder = any(k in norm_owner for k in BUILDER_KEYWORDS)
+        owner_type = "BUILDER" if is_builder else "INDIVIDUAL"
+        signals["_owner_type"] = owner_type
+        yb = comp.year_built.value
+        eff_year = subject.effective_date.year if subject.effective_date else 2026
+        is_new = (yb is not None and yb >= eff_year) or signals.get("_detected_condition") == "C1"
+        if is_new and owner_type == "INDIVIDUAL":
+            msg = (
+                f"New construction property owned by private individual ({owner_name!r}) "
+                "rather than home builder/developer; review for potential flip/resale."
+            )
+            flags.append(
+                settings.flag(
+                    FlagReason.INDIVIDUAL_OWNER_NEW_BUILD,
+                    comp.mls_number,
+                    msg,
+                    field="Owners Name",
+                    evidence=owner_name,
+                )
+            )
+
+    update_dict: dict[str, Any] = {"remarks_signals": signals}
+    if owner_type:
+        update_dict["owner_type"] = owner_type
+
+    return comp.model_copy(update=update_dict), flags

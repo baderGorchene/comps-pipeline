@@ -56,6 +56,9 @@ class FilterSettings(Strict):
     missing_lot: Literal["exclude", "keep_and_flag"]
     max_distance_miles: float = Field(gt=0)
     missing_distance: Literal["exclude", "keep_and_flag"]
+    price_bracket_pct: int | None = Field(default=None, ge=0, le=100)
+    price_bracket_inclusive: bool = True
+    missing_price: Literal["exclude", "keep_and_flag"] = "exclude"
     require_subdivision_match: bool
     subdivision_min_score: float = Field(ge=0, le=100)
     sale_date_max_months: int = Field(gt=0)  # sold pool only

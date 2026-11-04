@@ -81,8 +81,11 @@ class Comp(BaseModel):
     rank: int | None = None  # rank within its pool
     sort_key: list[Any] | None = None  # stored for audit
     remarks_signals: dict[str, Any] = Field(default_factory=dict)  # Step 3 NLP & heuristic findings
+    owner_type: str | None = None  # BUILDER vs INDIVIDUAL
     selection_rationale: str | None = None  # UAD 3.6 Table 1 selection justification
     deselection_reason: str | None = None  # UAD 3.6 Table 2 1-sentence deselection audit log
+    ai_rejection_justification: str | None = None  # v3.6 AI rejection justification
+    selection_status: str | None = None  # FINAL_COMP_1..FINAL_COMP_6 vs SHORTLIST_REJECTED
 
     def extra_str(self, *candidates: str) -> str:
         """Case-insensitive lookup across extras and remarks_signals; returns stripped str or ''."""

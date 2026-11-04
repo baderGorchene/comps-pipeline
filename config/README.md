@@ -19,8 +19,8 @@ A typo in a setting name, or a missing setting, is an error. There are no hidden
 | Setting | Meaning | Example |
 |---|---|---|
 | `output_dir` | Where run folders are created | `data/output` |
-| `shortlist_size` | How many ranked **sold** comps to keep | `30` |
-| `min_shortlist_size` | Fewer sold candidates than this triggers `escalation`. Still fewer after the last step gives a BLOCKING flag (exit code 2) naming the filter that removed the most rows | `20` |
+| `shortlist_size` | Maximum ranked **sold** comps to keep | `30` |
+| `min_shortlist_size` | Minimum sold candidates (yields 25-30 comps based on closeness and quality). Fewer sold candidates than this triggers `escalation`. Still fewer after the last step gives a BLOCKING flag (exit code 2) naming the filter that removed the most rows | `25` |
 | `listing_shortlist_size` | How many ranked active/option/pending listings to keep | `10` |
 
 ### status
@@ -44,8 +44,11 @@ Any other status (expired, withdrawn, blank) is excluded with `STATUS_NOT_USED`.
 | `missing_gla` | Comp with no usable living area: `exclude` or `keep_and_flag` | `exclude` |
 | `lot_bracket_pct` / `lot_bracket_inclusive` | Same rule for the lot, compared in acres (square feet are converted; `Acreage` is used when there are no square feet) | `25` |
 | `missing_lot` | Comp with no lot size: `exclude` or `keep_and_flag` | `keep_and_flag` |
-| `max_distance_miles` | Distance limit: straight-line from coordinates, else the export's `Distance` column | `3.0` |
+| `max_distance_miles` | Distance limit: straight-line from coordinates, else the export's `Distance` column (default 1.0 mile before escalation) | `1.0` |
 | `missing_distance` | Comp with neither coordinates nor a reported distance: `exclude` or `keep_and_flag` | `exclude` |
+| `price_bracket_pct` | Keep comps whose price (close price for sold, list price for active) is within +/- this % of subject benchmark price | `50`: subject $400k keeps $200k-$600k |
+| `price_bracket_inclusive` | `true` keeps comps exactly on the price percentage edge | `true` |
+| `missing_price` | Comp with no close or list price: `exclude` or `keep_and_flag` | `exclude` |
 | `require_subdivision_match` | `true` drops comps whose subdivision doesn't match (tier 3). `false` keeps them; same subdivision still ranks first | `false` |
 | `subdivision_min_score` | Fuzzy similarity (0-100) needed to count as a possible match (tier 2, flagged for review) | `90` |
 | `sale_date_max_months` | Sold comps closed longer ago than this, counted back from the subject's effective date, are excluded. Listings are not affected | `12` |
@@ -57,6 +60,8 @@ Any other status (expired, withdrawn, blank) is excluded with `STATUS_NOT_USED`.
 
 ```yaml
 steps:
+  - { max_distance_miles: 2.0 }
+  - { max_distance_miles: 3.0 }
   - { max_distance_miles: 4.0 }
   - { max_distance_miles: 5.0 }
   - { gla_bracket_pct: 30 }
