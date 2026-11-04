@@ -7,5 +7,6 @@ urlpatterns = [
     path("config/", views.config_view, name="config"),
     path("runs/", views.history, name="history"),
     path("runs/<str:run_id>/", views.results, name="results"),
+    path("runs/<str:run_id>/ai-overview/", views.ai_overview_view, name="ai_overview"),
     path("runs/<str:run_id>/files/<str:name>", views.download, name="download"),
 ]

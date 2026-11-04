@@ -14,11 +14,12 @@ from typing import Any
 
 import yaml
 from django.conf import settings as django_settings
-from django.http import FileResponse, Http404, HttpRequest, HttpResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from pydantic import ValidationError
 
 from comps_pipeline import pipeline
+from comps_pipeline.ai.router import AIModelRouter
 from comps_pipeline.config.loader import ConfigError, load_settings, settings_from_dict
 from comps_pipeline.ingest.mapper import InputError
 from comps_pipeline.models import Subject
@@ -34,7 +35,7 @@ from web.forms import (
 
 FILE_ONLY_KEYS = ("column_mapping", "subdivision_aliases")  # live in their own YAML files
 RUN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9]{6}(-[0-9]+)?$")
-DOWNLOADS = (*OUTPUT_FILES, "subject.json", "run.log")
+DOWNLOADS = (*OUTPUT_FILES, "subject.json", "run.log", "ai_overview.json")
 
 RULE_LABELS = {
     "max_distance": "Distance beyond maximum limit",
@@ -403,13 +404,15 @@ def _garage(c: dict) -> str:
     return "—"
 
 
-def _comp_row(c: dict, picked: set[str], flag_counts: dict[str, int]) -> dict:
+def _comp_row(c: dict, picked: set[str], flags_by_mls: dict[str, list[dict[str, Any]]]) -> dict:
     acres = _comp_attr(c, "lot")
     baths = _comp_attr(c, "baths")
+    mls = c["mls_number"]
+    comp_flags = flags_by_mls.get(mls, [])
     return {
         "rank": c["rank"],
         "pool": c.get("pool", ""),
-        "mls": c["mls_number"],
+        "mls": mls,
         "address": _extra(c, "Address", "Street Address", "Property Address") or "—",
         "status": _v(c, "status") or "",
         "price": _money(_v(c, "close_price") or _v(c, "list_price")),
@@ -427,13 +430,14 @@ def _comp_row(c: dict, picked: set[str], flag_counts: dict[str, int]) -> dict:
         "miles": _miles(_v(c, "distance_miles")),
         "subdivision": _v(c, "subdivision_raw") or "",
         "same_subdivision": _v(c, "subdivision_tier") in (0, 1),
-        "flags": flag_counts.get(c["mls_number"], 0),
-        "picked": c["mls_number"] in picked,
+        "flags": comp_flags,
+        "flags_count": len(comp_flags),
+        "picked": mls in picked,
         "selection_rationale": c.get("selection_rationale") or "",
         "deselection_reason": c.get("deselection_reason") or "",
         "ai_rejection_justification": c.get("ai_rejection_justification") or "",
         "selection_status": c.get("selection_status")
-        or ("PICKED" if c["mls_number"] in picked else "SHORTLIST_REJECTED"),
+        or ("PICKED" if mls in picked else "SHORTLIST_REJECTED"),
         "owner_type": c.get("owner_type") or "",
     }
 
@@ -658,10 +662,11 @@ def results(request: HttpRequest, run_id: str) -> HttpResponse:
     cfg = manifest["config_snapshot"]
     gaps = {f["field"] for f in flags if f["reason"] == "NOT_BRACKETED"}
     picked = {c["mls_number"] for c in final}
-    flag_counts: dict[str, int] = {}
+    flags_by_mls: dict[str, list[dict[str, Any]]] = {}
     for f in flags:
-        if f["mls_number"]:
-            flag_counts[f["mls_number"]] = flag_counts.get(f["mls_number"], 0) + 1
+        m = f.get("mls_number")
+        if m:
+            flags_by_mls.setdefault(m, []).append(f)
     blocking = [f for f in flags if f["severity"] == "BLOCKING"]
     attempts = manifest.get("escalation_attempts", [])
     level = manifest.get("escalation_level", 0)
@@ -687,23 +692,28 @@ def results(request: HttpRequest, run_id: str) -> HttpResponse:
     else:
         unused_raw = [c for c in shortlist if c["mls_number"] not in picked]
 
+    ai_overview_path = run_dir / "ai_overview.json"
+    ai_overview = _json(ai_overview_path) if ai_overview_path.is_file() else None
+
     context = {
         "run_id": run_id,
         "manifest": manifest,
         "subject": subject,
+        "ai_overview": ai_overview,
         "grid": _grid(final, subject, cfg["selection"]["bracket_attributes"], gaps),
-        "final_table": [_comp_row(c, picked, flag_counts) for c in final],
-        "analyzed_not_used": [_comp_row(c, picked, flag_counts) for c in unused_raw],
+        "final_table": [_comp_row(c, picked, flags_by_mls) for c in final],
+        "analyzed_not_used": [_comp_row(c, picked, flags_by_mls) for c in unused_raw],
         "final_count": len(final),
         "gaps": [ATTRIBUTE_LABELS[g] for g in sorted(gaps) if g in ATTRIBUTE_LABELS],
         "blocking": blocking,
         "steps": steps,
         "pipeline_trace": pipeline_trace,
         "min_sold": cfg["run"]["min_shortlist_size"],
-        "sold": [_comp_row(c, picked, flag_counts) for c in shortlist if c["pool"] == "sold"],
+        "sold": [_comp_row(c, picked, flags_by_mls) for c in shortlist if c["pool"] == "sold"],
         "listings": [
-            _comp_row(c, picked, flag_counts) for c in shortlist if c["pool"] == "listing"
+            _comp_row(c, picked, flags_by_mls) for c in shortlist if c["pool"] == "listing"
         ],
+        "total_shortlist": len(shortlist),
         "excluded": excluded,
         "flags": sorted(flags, key=lambda f: (severity_order[f["severity"]], f["id"])),
         "review_count": sum(f["severity"] == "REVIEW" for f in flags),
@@ -712,6 +722,43 @@ def results(request: HttpRequest, run_id: str) -> HttpResponse:
         "downloads": [n for n in DOWNLOADS if (run_dir / n).is_file()],
     }
     return render(request, "results.html", context)
+
+
+def ai_overview_view(request: HttpRequest, run_id: str) -> JsonResponse:
+    run_dir = _run_dir(run_id)
+    ai_overview_path = run_dir / "ai_overview.json"
+    force = request.GET.get("force") == "1"
+
+    if ai_overview_path.is_file() and not force:
+        try:
+            cached = _json(ai_overview_path)
+            return JsonResponse({"status": "ok", "cached": True, "overview": cached})
+        except Exception:
+            pass
+
+    manifest = _json(run_dir / "run_manifest.json")
+    final = _json(run_dir / "final_selection.json")
+    shortlist = _json(run_dir / "shortlist.json")
+    flags = _json(run_dir / "flags.json")
+    subject = _json(run_dir / "subject.json") if (run_dir / "subject.json").is_file() else {}
+
+    router = AIModelRouter()
+    overview_result, model_used = router.generate_run_overview(
+        subject=subject,
+        manifest=manifest,
+        final_picks=final,
+        shortlist=shortlist,
+        flags=flags,
+    )
+    data = overview_result.model_dump()
+    data["model_used"] = model_used
+
+    try:
+        ai_overview_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception as e:
+        logging.getLogger(__name__).warning("Could not persist ai_overview.json: %s", e)
+
+    return JsonResponse({"status": "ok", "cached": False, "overview": data})
 
 
 def history(request: HttpRequest) -> HttpResponse:

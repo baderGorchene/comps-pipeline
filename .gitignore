@@ -22,6 +22,8 @@ data/**/*.yaml
 # Claude
 .claude/
 
+staticfiles/
+
 UPDATES.md
 
 *.canvas

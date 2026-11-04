@@ -1,87 +1,153 @@
 # comps-pipeline
 
-A local web app that turns an MLS export (CSV) into a shortlist of comparable sales for one subject property, and picks the final 5 sold comps + 1 active/option/pending listing.
+A deterministic residential appraisal shortlisting engine and web studio that turns an MLS export (CSV) into a high-confidence comparable shortlist and selects the final appraisal comparison grid (5 sold comps + 1 active/option/pending listing, or 4 sold + 2 listings in New Construction mode).
 
-What a run does:
+## Key Features
 
-1. Reads the CSV exactly as exported, as text, and maps your column names to standard names (`config/column_mapping.yaml`).
-2. Cleans prices, dates, square footage and room counts. A bad or missing value is never guessed: it is left blank and flagged. The status column splits sold comps from active/option/pending listings; other statuses are excluded.
-3. Removes comps that fail your rules: living area ±25%, lot ±25% (in acres), within 3 miles, sold in the last 12 months, required features. Every removed row is listed with every reason it failed.
-4. If fewer than 20 sold comps are left, relaxes the rules one step at a time, in order: 4 miles, 5 miles, living area ±30%, 24 months. Each step is recorded.
-5. Ranks sold comps and listings separately: same subdivision first, then distance, living area, age, lot, beds, baths, with tolerance bands so small differences tie.
-6. Picks the top 5 sold + 1 listing, and swaps in lower-ranked sold comps when needed so the subject is bracketed (one comp above and one below) on living area, lot, year built, beds and baths.
+1. **Deterministic Execution:** Every distance calculation, filter boundary, tolerance band, ranking metric, and bracketing swap is calculated with exact integer and fraction math in Python. Zero black-box or non-reproducible selections.
+2. **7-Rule Hard Filtering & Strict Price Gate:**
+   - Living area (GLA) within ±25% (exact integer boundary arithmetic).
+   - Lot size within ±25% (exact `Fraction` acreage arithmetic).
+   - Proximity within 1.0 mile baseline research range before escalation.
+   - Hard Price Bracket Gate: excludes properties outside ±50% of the subject benchmark valuation (`contract_price` / `appraised_value`).
+   - Sale recency within 12 months (or up to 24 months via escalation).
+   - Strict market guardrails: property sub-type, stories, foundation, and 55+ community gating.
+3. **New Construction Subdivision Allocation Quotas (C1 Mode):**
+   - Automatically detects New Construction subjects (`construction_status: "new"` or recent build year).
+   - Stage 4 Escalation continues until in-subdivision ($\ge 2$ sold, $\ge 1$ active) and out-of-subdivision ($\ge 1$ sold, $\ge 1$ active) candidate quotas are satisfied or all steps exhaust, logging `NEW_CONST_SUBDIVISION_DEFICIT` if deficient.
+   - Stage 5 Shortlisting actively protects out-of-subdivision comps from being crowded out by in-subdivision comps within the 25–30 shortlist cap.
+   - Stage 6 Selection picks 2 Sold + 1 Active inside the subdivision, 1 Sold + 1 Active outside the subdivision, plus 1 Sold remainder (6 comps total). Bracketing swaps strictly preserve these quotas.
+4. **Dynamic 25–30 Shortlist:**
+   - Guarantees 25 high-quality comps, dynamically expanding to 30 for comps within the 1.0-mile baseline research range with matching subdivision and quality metrics.
+5. **AI Model Router & UAD 3.6 Rationales:**
+   - Hot failover layer (`gpt-6.1-terra` with automatic fallback to `gemini-flash-latest`) and instant heuristic offline fallback.
+   - Generates plain-English appraisal selection and deselection rationales for every shortlisted property.
+   - Exports `shortlist_v36.csv` and `shortlist_v36.json` for UAD 3.6 appraisal software integration.
+6. **Stateless Web Application:**
+   - Zero database required (`DATABASES = {}`).
+   - Interactive intake form, 6-module Configuration Studio, appraisal sales comparison grid with visual bracket indicators (`▲`, `▼`, `=`), and run history archive.
 
-The same input and the same rules always give the same result. All thresholds live in `config/settings.yaml`, and the web form can change them per run.
+---
 
-## Start it
+## Quick Start (Local)
 
-Double-click `run.bat`. It installs what's needed (first time only), starts the app and opens http://127.0.0.1:8000/ in your browser. Close the window to stop it.
+### Option A: Windows 1-Click (`run.bat`)
 
-`run.bat` needs [uv](https://docs.astral.sh/uv/):
+Double-click `run.bat`. It installs dependencies via `uv`, runs migrations/checks, and opens `http://127.0.0.1:8000/` in your browser.
 
+Requires [uv](https://docs.astral.sh/uv/):
 ```powershell
 winget install --id=astral-sh.uv -e
 ```
 
-`uv sync` installs Python 3.13 if missing and the exact versions from `uv.lock`.
+### Option B: Python Virtual Environment
 
-## Using the app
+```bash
+# Create virtualenv and install dependencies
+uv sync
 
-- **New run:** upload the MLS export (or use the synthetic sample), then type the subject in or upload a `subject.yaml`.
-- **Configuration:** edit filtering thresholds, relaxation steps, ranking priorities, column mappings, and subdivision aliases in the web UI (saved to `config/*.yaml` with `.yaml.bak` backups).
-- **Results:** the final 6 laid out like the sales comparison grid, with ▲/▼ against the subject and a bracket check per row; which rule steps were used; the ranked sold and listing shortlists; flags; every excluded row with its reasons; downloads.
-- **Past runs:** every run is kept in `data/output/<run_id>/`.
-
-If `data/input/subject.yaml` exists, the subject form starts with it. `data/input/` is git-ignored, so real client files are never committed.
-
-### A new CSV layout
-
-Each standard field in `config/column_mapping.yaml` lists the header names it may appear under:
-
-```yaml
-living_area: ["SqFt Living", "LivingArea", "GLA", "Sq Ft", "Total SqFt", "Living Area", "Living Sq Ft"]
+# Run the Django local server
+.venv/Scripts/python manage.py runserver
 ```
 
-Add your export's header to the right list. Matching ignores case and surrounding spaces. If a required column is missing, the error lists every header the CSV does have.
+---
+
+## Deployment & Cloud Hosting
+
+### Docker Container (Hugging Face Spaces & Cloud)
+
+The repository includes a ready-to-deploy [Dockerfile](file:///d:/upwork/sam%20safak/comps-pipeline/Dockerfile) optimized for container platforms (such as Hugging Face Spaces):
+- Runs as a non-root user (UID `1000`).
+- Exposes port `7860` (HF Spaces default).
+- Pre-compiles and serves static assets with `whitenoise`.
+- Runs with production Gunicorn workers (`web.wsgi:application`).
+
+```bash
+# Build the Docker image
+docker build -t comps-pipeline .
+
+# Run container locally on port 7860
+docker run -p 7860:7860 -e PORT=7860 comps-pipeline
+```
+
+### Environment Variables
+
+Copy `.env.example` to `.env` or set environment variables in your deployment dashboard:
+
+| Variable | Description | Default |
+|---|---|---|
+| `OPENAI_API_KEY` | OpenAI API key for primary `gpt-6.1-terra` AI inference | *Optional (heuristics fallback used if unset)* |
+| `GEMINI_API_KEY` | Google Gemini API key for `gemini-flash-latest` hot failover | *Optional* |
+| `SECRET_KEY` | Django cryptographic signing key | *Auto-generated random key* |
+| `DEBUG` | Enable/disable Django debug mode | `True` locally, set `False` in production |
+| `PORT` | Listening web port | `7860` in Docker, `8000` locally |
+
+---
 
 ## Outputs (`data/output/<run_id>/`)
 
+Every pipeline run creates an isolated, auditable output folder:
+
 | File | Contents |
 |---|---|
-| `final_selection.csv` / `.json` | The final 5 sold + 1 listing |
-| `shortlist.csv` / `.json` | Ranked sold comps, then ranked listings (`pool` column) |
-| `excluded.csv` | Every row not shortlisted, with all reasons |
-| `flags.csv` / `.json` | Every flag, with severity |
-| `audit.jsonl` | One line per decision, including each comp's sort key and every swap |
-| `run_manifest.json` | Input hashes, rules used, rule steps tried, row counts, timings |
-| `subject.json`, `run.log` | The subject as used, and the run's log |
+| `final_selection.csv` / `.json` | The final 5 sold + 1 listing (or 4 sold + 2 listings in C1 mode) with bracketing metrics |
+| `shortlist_v36.csv` / `.json` | Full 25–30 shortlist with UAD 3.6 selection status and AI selection/deselection rationales |
+| `shortlist.csv` / `.json` | Ranked sold comps followed by ranked listings (`pool` column) |
+| `excluded.csv` | Every excluded input row with source row number, stage, and all failing reasons |
+| `flags.csv` / `.json` | Sequential diagnostic flags (`F0001`, `F0002`, ...) with severity and evidence |
+| `audit.jsonl` | Line-by-line machine-readable decision log recording every `KEPT`, `EXCLUDED`, `FLAGGED`, and `RANKED` action |
+| `run_manifest.json` | Run metadata, SHA-256 input file hashes, configuration snapshot, stage durations, and escalation attempts |
+| `ai_overview.json` | Executive appraisal summary narrative, search scope evaluation, bracketing analysis, and valuation bracket |
+| `subject.json` | Validated subject property specification used for the run |
+| `run.log` | Complete formatted pipeline execution log |
 
-CSV files are UTF-8 with BOM so Excel opens them correctly.
+*Note: All CSV files are encoded in UTF-8 with BOM (`utf-8-sig`) for immediate compatibility with Microsoft Excel.*
 
-## Folder guide
+---
 
+## Repository Structure
+
+```text
+comps-pipeline/
+├── Dockerfile                      # Production container image (HF Spaces port 7860, user 1000)
+├── .dockerignore                   # Docker build exclusions
+├── run.bat                         # One-click Windows launcher
+├── manage.py                       # Django management entry point
+├── pyproject.toml                  # Dependencies & tool configurations
+├── config/
+│   ├── settings.yaml               # Baseline filter thresholds, escalation steps, and ranking hierarchy
+│   ├── column_mapping.yaml         # MLS CSV header alias candidate mapping
+│   ├── subdivision_aliases.yaml    # Canonical subdivision name alias variants
+│   └── subject.example.yaml        # Annotated template for subject YAML files
+├── data/
+│   ├── input/                      # User input files (git-ignored)
+│   ├── samples/                    # Built-in sample datasets (Round Rock & McAllen benchmarks)
+│   └── output/                     # Immutable run artifacts (<run_id>/)
+├── src/comps_pipeline/
+│   ├── ai/                         # AI Model Router (GPT-6.1 Terra -> Gemini Flash) & prompt parsers
+│   ├── ingest/                     # CSV reader, column mapper, data cleaner & remarks NLP
+│   ├── filters/                    # Distance (Haversine), hard filters & cumulative escalation
+│   ├── matching/                   # Subdivision normalization, Roman numerals & 4-tier matching
+│   ├── ranking/                    # Tolerance-band metric ranking & dynamic 25-30 shortlisting
+│   ├── selection/                  # Final comp selection & strict-improvement bracketing swaps
+│   └── outputs/                    # CSV/JSON/JSONL artifact writers & UAD 3.6 exporter
+├── web/                            # Django web app (stateless, zero-database)
+│   ├── views.py                    # New Run, Configuration Studio, Results & History views
+│   ├── forms.py                    # Multi-module subject intake & rules forms
+│   ├── static/app.css              # App styling
+│   └── templates/                  # Responsive HTML templates
+├── tests/                          # 135 passing unit, integration, and end-to-end tests
+└── docs/                           # System architecture, changelog, and decisions
 ```
-run.bat            starts the app
-manage.py, web/    Django app: forms, pages, styles (no database)
-config/            settings.yaml, column_mapping.yaml, subdivision_aliases.yaml, subject.example.yaml
-data/              input/ (yours, ignored), samples/ (synthetic), output/ (runs)
-src/comps_pipeline/
-  ingest/          CSV -> standard fields -> typed, cleaned comps
-  filters/         distance, hard filters, rule relaxation
-  matching/        subdivision normalization and tiers
-  ranking/         ranking per pool
-  selection/       final 6 with bracketing
-  outputs/         file writers
-  pipeline.py      runs the stages in order
-tests/             pytest suite
-docs/              architecture, decisions, open questions
-```
 
-## Development
+---
+
+## Testing & Quality Assurance
 
 ```powershell
-uv run pytest
-uv run ruff check .
-```
+# Run the complete test suite (135 tests)
+.venv\Scripts\python.exe -m pytest
 
-See `docs/architecture.md` for how the stages fit together and `docs/open_questions.md` for what we still need from Sam.
+# Run linter
+.venv\Scripts\ruff check .
+```

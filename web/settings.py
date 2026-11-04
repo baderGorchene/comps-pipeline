@@ -19,6 +19,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://localhost:8000",
 ]
+if not DEBUG:
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
 
 INSTALLED_APPS = ["django.contrib.staticfiles", "web"]
 MIDDLEWARE = [
@@ -41,6 +44,7 @@ WSGI_APPLICATION = "web.wsgi.application"
 DATABASES: dict = {}
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 USE_TZ = False
 FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 

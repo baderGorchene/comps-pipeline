@@ -6,8 +6,8 @@
 
 - A ranked **Sold Shortlist** (default 25–30 sold comps based on closeness and quality, minimum 25 before rule relaxation).
 - A ranked **Listing Shortlist** (default up to 10 active, option, or pending listings).
-- A **Final Selection** (default 5 sold comps + 1 active/option/pending listing) that brackets the subject property above and below on configured attributes (`gla`, `lot`, `age`, `beds`, `baths`).
-- A complete, immutable **audit package** (`data/output/<run_id>/`) containing CSV/JSON selections, excluded rows with every failing rule, diagnostic flags, a line-by-line decision log (`audit.jsonl`), and a run manifest with SHA-256 input hashes and stage timings.
+- A **Final Selection** (default 5 sold comps + 1 active/option/pending listing in standard mode, or 4 sold comps + 2 listings in New Construction C1 mode) that brackets the subject property above and below on configured attributes (`gla`, `lot`, `age`, `beds`, `baths`).
+- A complete, immutable **audit package** (`data/output/<run_id>/`) containing CSV/JSON selections, UAD 3.6 rationale shortlist (`shortlist_v36.csv`/`.json`), excluded rows with every failing rule, diagnostic flags, a line-by-line decision log (`audit.jsonl`), and a run manifest with SHA-256 input hashes and stage timings.
 
 ---
 
@@ -137,17 +137,18 @@ flowchart TD
   - **Tier 3 (Mismatch):** Fuzzy score below `subdivision_min_score`.
 
 ### Stage 4: Hard Filters & Cumulative Auto-Relaxation (`filters/hard_filters.py`, `filters/escalation.py`)
-All six hard filters run independently on the same candidate list so an excluded row records **every** rule it failed:
+All hard filters run independently on the same candidate list so an excluded row records **every** rule it failed:
 1. **`sale_date_window`:** Sold pool only. Keeps comps with `close_date >= months_before(subject.effective_date, sale_date_max_months)`. Unknown close dates follow `filters.missing_close_date` (`exclude` | `keep_and_flag`).
 2. **`gla_bracket`:** Keeps comps within `±gla_bracket_pct%` of `subject.living_area` using exact integer math (`inclusive` controlled by `gla_bracket_inclusive`). Unknown GLA follows `filters.missing_gla`.
 3. **`lot_bracket`:** Keeps comps within `±lot_bracket_pct%` of `subject.lot_acres()` using exact `Fraction` math. Skipped if subject lot size is unknown. Unknown comp lot size follows `filters.missing_lot`.
-4. **`max_distance`:** Keeps comps with `distance_miles <= max_distance_miles`. Unknown distance follows `filters.missing_distance`.
-5. **`subdivision_match`:** Only active when `require_subdivision_match: true`; keeps Tiers 0, 1, and 2, and excludes Tier 3 or unknown subdivisions.
-6. **`required_features`:** Case-insensitive exact match against any standard field or unmapped CSV column in `comp.extras`.
+4. **`max_distance`:** Keeps comps with `distance_miles <= max_distance_miles` (default `1.0` mi baseline). Unknown distance follows `filters.missing_distance`.
+5. **`price_filter`:** Keeps comps with price within `±price_bracket_pct%` (default `50%`) of the subject benchmark valuation (`subject.benchmark_price`, falling back to `contract_price` / `appraised_value`) using exact scaled integer math. Unknown price follows `filters.missing_price`.
+6. **`subdivision_match`:** Only active when `require_subdivision_match: true`; keeps Tiers 0, 1, and 2, and excludes Tier 3 or unknown subdivisions.
+7. **`required_features`:** Case-insensitive exact match against any standard field or unmapped CSV column in `comp.extras`.
 
 **Escalation (`filter_with_escalation`):**
 - Level `0` evaluates baseline `filters`.
-- While kept **sold** comps `< run.min_shortlist_size` (default `25`), levels `1..N` apply `escalation.steps` cumulatively:
+- While kept **sold** comps `< run.min_shortlist_size` (default `25`), or if the subject is **New Construction** (`is_new_construction` is true) and subdivision quotas ($\ge 2$ sold and $\ge 1$ active in-sub, $\ge 1$ sold and $\ge 1$ active out-of-sub) are unmet, levels `1..N` apply `escalation.steps` cumulatively:
   - Step 1: `{ max_distance_miles: 2.0 }`
   - Step 2: `{ max_distance_miles: 3.0 }`
   - Step 3: `{ max_distance_miles: 4.0 }`
@@ -155,8 +156,9 @@ All six hard filters run independently on the same candidate list so an excluded
   - Step 5: `{ gla_bracket_pct: 30 }`
   - Step 6: `{ sale_date_max_months: 24 }`
 - Each step used emits a `CRITERIA_RELAXED` flag, and all tried levels with their sold/listing counts are stored in `manifest.escalation_attempts`.
+- If New Construction quotas remain deficient after all escalation steps, a `NEW_CONST_SUBDIVISION_DEFICIT` review flag is logged.
 
-### Stage 5: Tolerance-Band Ranking (`ranking/ranker.py`)
+### Stage 5: Tolerance-Band Ranking & Shortlisting (`ranking/ranker.py`)
 - Sold and listing pools are ranked separately using the configured 7-key `ranking.hierarchy` (default `[subdivision, distance, gla, age, lot, beds, baths]`).
 - For each key, values are grouped into integer buckets `floor(|diff| / Fraction(str(band)))`:
   - `subdivision`: `(0, subdivision_tier)`
@@ -168,10 +170,17 @@ All six hard filters run independently on the same candidate list so an excluded
   - `baths`: `|comp.total_baths() - subject.total_baths()|` bucket by `tolerance_bands.baths_count` (default `1`)
 - Missing values get bucket `(1, 0)` so they sort after all known values `(0, bucket)` on that key.
 - **Final Tie-Breakers:** Raw `distance_miles`, raw `|gla_diff_pct|`, and `mls_number` (guaranteeing a unique, deterministic total order).
-- **Shortlist Cutoffs:** Top `run.shortlist_size` (30) sold comps and top `run.listing_shortlist_size` (10) listings are kept; lower ranks go to `excluded.csv` with `RANK_BEYOND_SHORTLIST`. If sold shortlist `< run.min_shortlist_size`, raises `SHORTLIST_BELOW_MINIMUM` (`BLOCKING`) naming the hard filter rule that removed the most rows.
+- **New Construction Shortlist Quota Protection:** `_ensure_c1_shortlist_quotas` actively prevents in-subdivision solds from crowding out the required out-of-subdivision solds within the 25–30 shortlist cap.
+- **Dynamic 25–30 Shortlist Cutoffs:** Positions 1–25 are guaranteed; positions 26–30 are kept if within the 1.0-mile research baseline and meeting quality metrics (`_is_close_and_good`). Listings keep top `run.listing_shortlist_size` (10). Lower ranks go to `excluded.csv` with `RANK_BEYOND_SHORTLIST`. If sold shortlist `< run.min_shortlist_size`, raises `SHORTLIST_BELOW_MINIMUM` (`BLOCKING`) naming the hard filter rule that removed the most rows.
 
 ### Stage 6: Final Selection & Subject Bracketing (`selection/final.py`)
-- Starts with the top `selection.sold_count` (5) sold comps and top `selection.listing_count` (1) listing comp.
+- **New Construction Selection (C1):**
+  - Selects 2 Sold + 1 Active inside the subdivision (`tier in (0, 1)`).
+  - Selects 1 Sold + 1 Active outside the subdivision (`tier not in (0, 1)`).
+  - Selects 1 additional Sold remainder (total 6 comps: 4 Sold + 2 Listings).
+  - Swaps strictly protect the 2 In-Sub / 1 Out-of-Sub quotas; deficits log `NEW_CONST_SUBDIVISION_DEFICIT`.
+- **Standard Selection:**
+  - Starts with the top `selection.sold_count` (5) sold comps and top `selection.listing_count` (1) listing comp.
 - Checks `selection.bracket_attributes` (default `[gla, lot, age, beds, baths]`). An attribute is bracketed if at least one selected comp is strictly above the subject and one is strictly below (or equal when `equal_counts_as_bracketed: true`).
 - **Strict-Improvement Swaps:** While unbracketed attributes (`gaps`) remain, iterates through remaining shortlisted sold comps in rank order and tries swapping them for the lowest-ranked chosen sold picks (from worst rank to best). A swap is accepted if and only if the new set of gaps is a **strict subset** (`set(new) < set(current)`) of the current gaps, after which `chosen` is re-sorted by rank.
 - Unfixable gaps emit `NOT_BRACKETED` flags; missing listings emit `NO_LISTING_COMP`.
@@ -195,6 +204,7 @@ All six hard filters run independently on the same candidate list so an excluded
 | `NO_COORDINATES` | `REVIEW` | Neither GPS coordinates nor an MLS `Distance` column available |
 | `SUBDIVISION_UNCERTAIN` | `REVIEW` | Fuzzy subdivision match (Tier 2) or phase/section/unit number mismatch |
 | `CRITERIA_RELAXED` | `REVIEW` | One flag per escalation step applied to reach `min_shortlist_size` |
+| `NEW_CONST_SUBDIVISION_DEFICIT` | `REVIEW` | New Construction in-sub or out-of-sub quotas could not be satisfied after escalation |
 | `NOT_BRACKETED` | `REVIEW` | Final selection could not bracket the subject on a target attribute |
 | `NO_LISTING_COMP` | `REVIEW` | Fewer active/option/pending comps available than `selection.listing_count` |
 | `DUPLICATE_LISTING` | `INFO` | Duplicate `mls_number` in the CSV (first row kept, duplicate excluded) |
@@ -218,7 +228,8 @@ All six hard filters run independently on the same candidate list so an excluded
 
 All CSV files are encoded in `utf-8-sig` (UTF-8 with BOM) so Microsoft Excel on Windows opens them cleanly on double-click.
 
-- `final_selection.csv` / `final_selection.json` — The final 5 sold + 1 listing picks.
+- `final_selection.csv` / `final_selection.json` — The final 5 sold + 1 listing picks (or 4 sold + 2 listings in C1 mode).
+- `shortlist_v36.csv` / `shortlist_v36.json` — Full 25–30 shortlist with UAD 3.6 status (`FINAL_COMP_1`..`FINAL_COMP_6` vs `SHORTLIST_REJECTED`) and plain-English AI appraisal rationales for non-selected candidates.
 - `shortlist.csv` / `shortlist.json` — Ranked sold shortlist followed by ranked listing shortlist.
 - `excluded.csv` — Every non-shortlisted input row with its 1-based `source_row`, `stage`, all exclusion `reasons`, and raw field values.
 - `flags.csv` / `flags.json` — Sequential flags (`F0001`, `F0002`, ...) with `mls_number`, `field`, `reason`, `severity`, `message`, and `evidence`.
@@ -245,10 +256,10 @@ The repository includes a ready-to-run [Dockerfile](file:///d:/upwork/sam%20safa
 # Launch the web app locally on http://127.0.0.1:8000/
 .\run.bat
 
-# Run the full test suite (112 tests)
-python -m pytest
+# Run the full test suite (135 tests)
+.venv\Scripts\python.exe -m pytest
 
 # Run the linter
-ruff check .
+.venv\Scripts\ruff check .
 ```
 

@@ -157,3 +157,32 @@ def test_under_the_hood_steps_shown_on_results(client):
     assert "Multi-Criteria Tolerance Ranking" in page
     assert "Subject Bracketing &amp; Final Selection" in page
 
+
+def test_ai_overview_endpoint_and_results_display(client):
+    res = _post(client)
+    assert res.status_code == 302
+    run_id = res["Location"].rstrip("/").split("/")[-1]
+
+    # Test async AI overview endpoint
+    resp = client.get(f"/runs/{run_id}/ai-overview/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert "overview" in data
+    assert "executive_summary" in data["overview"]
+    assert "valuation_bracket_conclusion" in data["overview"]
+    assert data["overview"]["model_used"] in ("gpt-6.1-terra", "gemini-flash-latest", "heuristic_fallback")
+
+    # Second call should return cached overview
+    resp2 = client.get(f"/runs/{run_id}/ai-overview/")
+    assert resp2.status_code == 200
+    assert resp2.json()["cached"] is True
+
+    # Check results page renders overview and detailed flags
+    page = client.get(f"/runs/{run_id}/").content.decode()
+    assert "AI APPRAISAL OVERVIEW" in page
+    assert "Flags &amp; Diagnostic Notices" in page
+    assert "Underwriting Audit" in page or "UNDERWRITING AUDIT" in page
+    assert "ai-overview-panel" in page
+
+

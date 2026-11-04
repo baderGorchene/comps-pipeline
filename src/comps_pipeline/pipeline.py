@@ -182,7 +182,6 @@ def run(
     ai_model_used = "gpt-6.1-terra"
     with timer.stage("ai_rejection_justifications"):
         router = AIModelRouter()
-        final_mls = {c.mls_number for c in final.picks}
         rejections: dict[str, str] = {}
         for c in final.analyzed_not_used:
             justification, model = router.generate_rejection_justification(c, subject, final.picks)

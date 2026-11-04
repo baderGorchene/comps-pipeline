@@ -1,6 +1,7 @@
 """Pydantic schemas for structured LLM parsing across AI pipeline tasks."""
 
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -20,4 +21,16 @@ class OwnerClassificationResult(BaseModel):
 class CompRejectionJustification(BaseModel):
     mls_number: str
     justification: str
+
+
+class RunOverviewResult(BaseModel):
+    executive_summary: str = ""
+    search_parameters_analysis: str = ""
+    bracketing_evaluation: str = ""
+    new_construction_and_flags_review: str = ""
+    valuation_bracket_conclusion: str = ""
+    indicated_value_low: int | None = None
+    indicated_value_high: int | None = None
+    model_used: str = "gpt-6.1-terra"
+
 

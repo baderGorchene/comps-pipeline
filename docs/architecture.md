@@ -117,13 +117,15 @@ flowchart TD
 
 ### Stage 7: Output Generation & Run Manifest (`comps_pipeline.outputs.writers`)
 - Generates immutable, auditable run artifacts in `data/output/<run_id>/`:
-  - `final_selection.csv` / `final_selection.json`: The final 5 sold + 1 listing appraisal comps.
+  - `final_selection.csv` / `final_selection.json`: The final 5 sold + 1 listing appraisal comps (or 4 sold + 2 listings in C1 mode).
+  - `shortlist_v36.csv` / `shortlist_v36.json`: Full 25–30 shortlist enriched with UAD 3.6 selection status (`FINAL_COMP_1`..`FINAL_COMP_6` vs `SHORTLIST_REJECTED`) and AI-generated plain-English appraisal justifications for non-selected candidates.
   - `shortlist.csv` / `shortlist.json`: The full ranked sold shortlist (25–30) followed by the listing shortlist.
   - `excluded.csv`: Every excluded input row with its 1-based source row, exclusion stage, and all failing reasons.
   - `flags.csv` / `flags.json`: Diagnostic flags with severity, message, and evidence.
   - `audit.jsonl`: Line-by-line machine-readable decision log recording every `KEPT`, `EXCLUDED`, `FLAGGED`, and `RANKED` action.
   - `run_manifest.json`: Run metadata, input file SHA-256 hashes, config snapshot, stage durations, and escalation history.
   - `subject.json`: Validated subject property specification.
+  - `run.log`: Full formatted execution log.
 
 ---
 
@@ -165,14 +167,14 @@ Subject
 ├── address, living_area, subdivision, effective_date
 ├── optional coordinates: latitude, longitude
 ├── optional specs: year_built, lot_size_sqft, lot_size_acres, bedrooms, baths_full, baths_half
-├── optional amenities & context: pool, has_adu, foundation_type, is_55_plus, transaction_type, contract_price
+├── optional amenities & context: pool, has_adu, foundation_type, is_55_plus, transaction_type, contract_price, estimated_value, benchmark_price, construction_status
 └── extras: dict[str, Any]
 
 Flag
 ├── id: str ("F0001", "F0002", ...)
 ├── mls_number: str | None
 ├── field: str | None
-├── reason: FlagReason (13 standardized reasons)
+├── reason: FlagReason (14 standardized reasons including NEW_CONST_SUBDIVISION_DEFICIT)
 ├── severity: Severity (INFO | REVIEW | BLOCKING)
 ├── origin: FlagOrigin
 ├── message: str

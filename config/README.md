@@ -70,6 +70,8 @@ steps:
 
 Each step applied adds a `CRITERIA_RELAXED` flag, and the manifest lists every level tried with its sold/listing counts.
 
+When the subject is **New Construction** (`construction_status: "new"` or year built = effective year / year - 1), escalation also continues until both in-subdivision ($\ge 2$ sold, $\ge 1$ active) and out-of-subdivision ($\ge 1$ sold, $\ge 1$ active) quotas are satisfied or all steps are exhausted. If any quota remains unmet after all steps, `NEW_CONST_SUBDIVISION_DEFICIT` is flagged.
+
 ### selection
 | Setting | Meaning | Example |
 |---|---|---|
@@ -78,6 +80,8 @@ Each step applied adds a `CRITERIA_RELAXED` flag, and the manifest lists every l
 | `equal_counts_as_bracketed` | `true`: a pick equal to the subject counts as both above and below | `false` |
 
 The top-ranked picks are taken first. If an attribute is not bracketed, lower-ranked sold comps from the shortlist are tried in place of the lowest-ranked sold picks; a swap is accepted only if it leaves strictly fewer unbracketed attributes (and adds none). The listing pick is not swapped. What can't be fixed gets a `NOT_BRACKETED` flag. Baths count as full + 0.5 x half.
+
+For **New Construction**, the selection engine enforces a 6-comp quota (2 sold + 1 active in-subdivision, 1 sold + 1 active out-of-subdivision, plus 1 sold remainder), and bracketing swaps strictly preserve these quotas.
 
 ### matching
 | Setting | Meaning |
@@ -100,7 +104,7 @@ How serious each flag reason is: `INFO`, `REVIEW` or `BLOCKING`. Every reason mu
 | Severity | Reasons |
 |---|---|
 | BLOCKING | SHORTLIST_BELOW_MINIMUM |
-| REVIEW | MISSING_REQUIRED_FIELD, INVALID_VALUE, NO_COORDINATES, SUBDIVISION_UNCERTAIN, CRITERIA_RELAXED, NOT_BRACKETED, NO_LISTING_COMP |
+| REVIEW | MISSING_REQUIRED_FIELD, INVALID_VALUE, NO_COORDINATES, SUBDIVISION_UNCERTAIN, CRITERIA_RELAXED, NOT_BRACKETED, NO_LISTING_COMP, NEW_CONST_SUBDIVISION_DEFICIT |
 | INFO | DUPLICATE_LISTING, STATUS_NOT_USED |
 
 Saving on the Configuration page rewrites `settings.yaml`, `column_mapping.yaml`, and `subdivision_aliases.yaml` without these comments. The previous versions are kept as `*.yaml.bak`.

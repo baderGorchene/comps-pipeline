@@ -263,9 +263,14 @@ def _is_close_and_good(
         return False, f"GLA diff {c.gla_diff_pct.value:.1f}% exceeds bracket {settings.filters.gla_bracket_pct}%"
 
     tier = c.subdivision_tier.value
-    if base_comp and base_comp.subdivision_tier.value in (0, 1):
-        if tier is not None and tier > 2 and dist > 0.5:
-            return False, f"subdivision tier {tier} does not match while base comp is in-subdivision"
+    if (
+        base_comp
+        and base_comp.subdivision_tier.value in (0, 1)
+        and tier is not None
+        and tier > 2
+        and dist > 0.5
+    ):
+        return False, f"subdivision tier {tier} does not match while base comp is in-subdivision"
 
     return True, "ok"
 

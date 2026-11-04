@@ -11,7 +11,6 @@ from comps_pipeline.filters.hard_filters import (
     lot_filter,
     lot_in_bracket,
     price_filter,
-    price_in_bracket,
     required_features_filter,
     sale_date_filter,
 )

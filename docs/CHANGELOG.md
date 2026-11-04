@@ -4,6 +4,51 @@ All notable features, architectural milestones, and fixes in `comps-pipeline` ar
 
 ---
 
+## [2026-11-04] — Asynchronous AI Executive Run Overview & Full Diagnostic Flag Presentation
+
+### Added
+- **Asynchronous AI Executive Run Overview (`src/comps_pipeline/ai/`, `web/views.py`, `web/templates/results.html`):**
+  - Added [`generate_run_overview`](file:///d:/upwork/sam%20safak/comps-pipeline/src/comps_pipeline/ai/router.py) connecting primary `gpt-6.1-terra` to `gemini-flash-latest` fallback, with deterministic appraisal heuristic synthesis for offline execution.
+  - Generates a 5-pillar appraisal synthesis: Executive Summary narrative, Search Scope & Market Depth evaluation (40-comp shortlist breakdown), Subject Bracketing Analysis across core physical features, New Construction & Underwriting Flags review, and Indicated Market Valuation Bracket.
+  - Added dedicated endpoint [`GET /runs/<run_id>/ai-overview/`](file:///d:/upwork/sam%20safak/comps-pipeline/web/views.py) that generates and caches `data/output/<run_id>/ai_overview.json`.
+  - Built progressive frontend rendering on [`results.html`](file:///d:/upwork/sam%20safak/comps-pipeline/web/templates/results.html): displays the results page immediately, loads the AI overview card asynchronously with an animated status indicator, and provides a 1-click "Regenerate" button.
+- **Diagnostic Flag Visibility Across All Tables & Open Audit Panel:**
+  - Replaced the bare flag count number in [`comp_table.html`](file:///d:/upwork/sam%20safak/comps-pipeline/web/templates/comp_table.html) with interactive, color-coded flag chips (`[REVIEW]`, `[BLOCKING]`, `[INFO]`) displaying reason codes and full descriptive tooltips.
+  - Added Diagnostic Flags columns to Table 1 (Final Selection Comparables) and Table 2 (Analyzed, Not Used Shortlist).
+  - Elevated the collapsed Flags details into an open, permanent **Underwriting Audit Panel** with instant severity filters (`All`, `Review`, `Blocking`, `Info`), reason codes, target fields, detailed underwriting messages, and evidence.
+- **40-Comp Shortlist Clarification:**
+  - Explicitly labeled the 40-comp shortlist breakdown across the executive funnel, section headers, and AI overview as **30 Sold comps + 10 Active/Pending listing comps**.
+
+### Changed
+- Expanded automated test suite from 135 to **136 passing tests** in `tests/test_web.py`.
+
+---
+
+## [2026-11-04] — Stage 4 Hard Price Gate, End-to-End New Construction Quotas & Production Hardening
+
+### Added
+- **Stage 4 Hard Price Bracket Gate (`filters/hard_filters.py`, `models/subject.py`, `config/schema.py`):**
+  - Added strict integer-scaled price bracket filtering: excludes properties whose price deviates by more than `±price_bracket_pct`% (default `50%`) from `subject.benchmark_price` (evaluated from `contract_price`, `appraised_value`, or `estimated_value`).
+  - Preserves exact boundary math (`comp_price * 100` vs `benchmark * (100 ± pct)`), avoiding floating-point boundary anomalies.
+  - Added 13 dedicated unit tests in [`tests/test_hard_filters.py`](file:///d:/upwork/sam%20safak/comps-pipeline/tests/test_hard_filters.py).
+- **Full-Pipeline New Construction (C1) Subdivision Quota Engine:**
+  - **Stage 4 Escalation (`filters/escalation.py`):** Progressive escalation continues until both in-subdivision ($\ge 2$ sold, $\ge 1$ active) and out-of-subdivision ($\ge 1$ sold, $\ge 1$ active) quotas are satisfied or all 6 escalation steps exhaust. Emits `NEW_CONST_SUBDIVISION_DEFICIT` if criteria remain deficient.
+  - **Stage 5 Anti-Crowding Shortlisting (`ranking/ranker.py`):** Implemented `_ensure_c1_shortlist_quotas` to prevent in-subdivision candidates from crowding out required out-of-subdivision candidates in the 25–30 shortlist cap.
+  - **Stage 6 Selection & Swap Protection (`selection/final.py`):** Enforces 2 Sold + 1 Active in-sub, 1 Sold + 1 Active out-of-sub, and 1 Sold remainder. Bracketing swaps strictly reject candidates that would violate in-sub or out-of-sub quotas.
+- **Production Deployment Hardening (`Dockerfile`, `web/settings.py`, `.env.example`):**
+  - Added explicit `STATIC_ROOT` configuration in `web/settings.py` for seamless static asset handling.
+  - Added automated `collectstatic --noinput` build step in `Dockerfile` for production serving via `whitenoise`.
+  - Added comprehensive `.env.example` covering OpenAI, Gemini, and Django production variables.
+
+### Fixed
+- **Django Template Parsing in UI (`web/templates/new_run.html`):** Re-joined split newlines inside `{{ radio.choice_label }}` template tags that previously caused literal Django syntax to render in the browser.
+- **UI & Mock Cleanup (`web/templates/new_run.html`, `data/`):** Removed hardcoded sample buttons (`Fill Bedr Sample`, `Fill RR Sample`), deleted scratch test YAML files, and renamed test suites for clean maintainability.
+
+### Changed
+- Expanded automated test suite from 118 to **135 passing unit, integration, and end-to-end tests**.
+
+---
+
 ## [2026-11-04] — Architecture & AI Pipeline Specification (Version 3.6)
 
 ### Added

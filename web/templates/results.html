@@ -69,14 +69,82 @@
     <div class="funnel-arrow">→</div>
     <div class="funnel-stage">
       <span class="funnel-step">STAGE 05</span>
-      <span class="funnel-num">{{ counts.shortlist_sold }} + {{ counts.shortlist_listing }}</span>
-      <span class="funnel-label">Ranked Shortlist</span>
+      <span class="funnel-num">{{ total_shortlist }}</span>
+      <span class="funnel-label">Shortlist ({{ counts.shortlist_sold }} Sold + {{ counts.shortlist_listing }} List)</span>
     </div>
     <div class="funnel-arrow">→</div>
     <div class="funnel-stage funnel-final">
       <span class="funnel-step">STAGE 06</span>
       <span class="funnel-num">{{ final_count }}</span>
       <span class="funnel-label">Final Selection</span>
+    </div>
+  </section>
+
+  <!-- AI Executive Appraisal Overview (Loads Asynchronously After Pipeline Completion) -->
+  <section class="studio-card ai-overview-panel" id="ai-overview-card">
+    <div class="studio-card-head ai-head">
+      <div class="studio-title-wrap">
+        <span class="ai-pill"><span class="ai-sparkle">✦</span> AI APPRAISAL OVERVIEW</span>
+        <div>
+          <h2>Executive Comparable Selection Overview</h2>
+          <p class="hint">Synthesized narrative analyzing the {{ total_shortlist }} shortlisted comps, bracketing coverage, and market valuation range.</p>
+        </div>
+      </div>
+      <div class="ai-head-actions">
+        <span class="ai-model-badge" id="ai-model-tag">
+          <span class="ai-model-dot"></span>
+          <span id="ai-model-name">{% if ai_overview %}{{ ai_overview.model_used|default:"AI Synthesizer" }}{% else %}Synthesizing...{% endif %}</span>
+        </span>
+        <button type="button" class="btn-outline btn-xs" id="ai-refresh-btn" onclick="fetchAIOverview(true)" title="Regenerate AI Overview">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          <span>Regenerate</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="ai-overview-loading" class="ai-loading-container" {% if ai_overview %}style="display:none;"{% endif %}>
+      <div class="ai-spinner-row">
+        <div class="ai-spinner"></div>
+        <div class="ai-spinner-meta">
+          <strong>Generating AI Executive Appraisal Overview...</strong>
+          <p class="hint">Evaluating {{ total_shortlist }} shortlisted properties ({{ counts.shortlist_sold }} sold + {{ counts.shortlist_listing }} listings), attribute bracketing, and underwriting flags.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="ai-overview-content" class="ai-content-body" {% if not ai_overview %}style="display:none;"{% endif %}>
+      {% if ai_overview %}
+        <div class="ai-lead-summary">
+          <p class="ai-para">{{ ai_overview.executive_summary|linebreaksbr }}</p>
+        </div>
+        <div class="ai-spec-grid">
+          <div class="ai-spec-card">
+            <span class="ai-spec-title">Search Scope &amp; Market Depth</span>
+            <p>{{ ai_overview.search_parameters_analysis }}</p>
+          </div>
+          <div class="ai-spec-card">
+            <span class="ai-spec-title">Subject Bracketing Analysis</span>
+            <p>{{ ai_overview.bracketing_evaluation }}</p>
+          </div>
+          <div class="ai-spec-card">
+            <span class="ai-spec-title">New Construction &amp; Underwriting Flags</span>
+            <p>{{ ai_overview.new_construction_and_flags_review }}</p>
+          </div>
+          <div class="ai-spec-card ai-val-card">
+            <span class="ai-spec-title">Indicated Market Valuation Bracket</span>
+            <div class="ai-val-box">
+              <span class="ai-val-range">
+                {% if ai_overview.indicated_value_low and ai_overview.indicated_value_high %}
+                  ${{ ai_overview.indicated_value_low }} – ${{ ai_overview.indicated_value_high }}
+                {% else %}
+                  Supported Market Bracket
+                {% endif %}
+              </span>
+              <p class="ai-val-note">{{ ai_overview.valuation_bracket_conclusion }}</p>
+            </div>
+          </div>
+        </div>
+      {% endif %}
     </div>
   </section>
 
@@ -256,7 +324,7 @@
         <span class="step-pill">TABLE 1 · UAD 3.6</span>
         <div>
           <h2>The Final {{ final_count }} Comparables &amp; Selection Rationales</h2>
-          <p class="hint">UAD 3.6 Table 1 including Contract Date, Closed Date, Condition/Quality, Garage, and automated Selection Rationale.</p>
+          <p class="hint">UAD 3.6 Table 1 including Contract Date, Closed Date, Condition/Quality, Garage, Selection Rationale, and Diagnostic Flags.</p>
         </div>
       </div>
     </div>
@@ -269,6 +337,7 @@
             <th class="num">Sale/List Price</th><th>Contract Date</th><th>Closed Date</th>
             <th class="num">GLA</th><th class="num">Acres</th><th class="num">Built</th>
             <th>Cond / Qual</th><th class="num">Bed/Bath</th><th>Garage</th><th>Selection Rationale</th>
+            <th class="flags-head">Diagnostic Flags</th>
           </tr>
         </thead>
         <tbody>
@@ -289,6 +358,20 @@
             <td class="num">{{ r.beds }} / {{ r.baths }}</td>
             <td>{{ r.garage }}</td>
             <td>{{ r.selection_rationale }}</td>
+            <td class="flags-cell">
+              {% if r.flags %}
+                <div class="comp-flags-list">
+                  {% for f in r.flags %}
+                    <span class="flag-chip flag-chip-{{ f.severity|lower }}" title="[{{ f.severity }}] {{ f.reason }}: {{ f.message }}">
+                      <span class="flag-chip-sev">{{ f.severity|lower }}</span>
+                      <span class="flag-chip-reason">{{ f.reason }}</span>
+                    </span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <span class="flag-clean">✓ None</span>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -319,6 +402,7 @@
             <th class="num">Pool Rank</th><th>MLS #</th><th>Address</th><th>Subdivision</th>
             <th>Status</th><th class="num">Price</th><th class="num">GLA</th>
             <th class="num">Distance</th><th>1-Sentence Deselection Reason (Workfile Audit)</th>
+            <th class="flags-head">Diagnostic Flags</th>
           </tr>
         </thead>
         <tbody>
@@ -340,6 +424,20 @@
                 </div>
               {% endif %}
             </td>
+            <td class="flags-cell">
+              {% if r.flags %}
+                <div class="comp-flags-list">
+                  {% for f in r.flags %}
+                    <span class="flag-chip flag-chip-{{ f.severity|lower }}" title="[{{ f.severity }}] {{ f.reason }}: {{ f.message }}">
+                      <span class="flag-chip-sev">{{ f.severity|lower }}</span>
+                      <span class="flag-chip-reason">{{ f.reason }}</span>
+                    </span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <span class="flag-clean">✓ None</span>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -357,7 +455,7 @@
         <span class="step-pill">SOLD POOL</span>
         <div>
           <h2>Sold shortlist <span class="count">{{ sold|length }}</span></h2>
-          <p class="hint">Ranked sold candidates passing all active filter thresholds.</p>
+          <p class="hint">Ranked sold candidates passing all active filter thresholds (part of {{ total_shortlist }} total shortlisted comps).</p>
         </div>
       </div>
     </div>
@@ -370,26 +468,61 @@
         <span class="step-pill">LISTING POOL</span>
         <div>
           <h2>Active, option and pending <span class="count">{{ listings|length }}</span></h2>
-          <p class="hint">Ranked active, option, and pending listings.</p>
+          <p class="hint">Ranked active, option, and pending listings (part of {{ total_shortlist }} total shortlisted comps).</p>
         </div>
       </div>
     </div>
     {% include "comp_table.html" with rows=listings %}
   </section>
 
-  <details class="studio-card collapsible-card">
-    <summary><h2>Flags &amp; Diagnostic Notices <span class="count">{{ flags|length }}</span></h2></summary>
+  <!-- Dedicated Diagnostic Flags & Underwriting Review Section -->
+  <section class="studio-card flags-panel" id="flags-panel">
+    <div class="studio-card-head">
+      <div class="studio-title-wrap">
+        <span class="step-pill">UNDERWRITING AUDIT</span>
+        <div>
+          <h2>Flags &amp; Diagnostic Notices <span class="count">{{ flags|length }}</span></h2>
+          <p class="hint">Itemized diagnostic notices, underwriting rules, and data quality flags across all pipeline stages.</p>
+        </div>
+      </div>
+      <div class="flags-filters-bar">
+        <button type="button" class="btn-flag-filter active" data-sev="ALL" onclick="filterFlags('ALL')">All ({{ flags|length }})</button>
+        {% if review_count %}<button type="button" class="btn-flag-filter filter-review" data-sev="REVIEW" onclick="filterFlags('REVIEW')">Review ({{ review_count }})</button>{% endif %}
+        {% if blocking %}<button type="button" class="btn-flag-filter filter-blocking" data-sev="BLOCKING" onclick="filterFlags('BLOCKING')">Blocking ({{ blocking|length }})</button>{% endif %}
+        <button type="button" class="btn-flag-filter filter-info" data-sev="INFO" onclick="filterFlags('INFO')">Info</button>
+      </div>
+    </div>
+    {% if flags %}
     <div class="table-scroll">
-      <table class="plain">
-        <thead><tr><th>Severity</th><th>Reason</th><th>MLS #</th><th>Message</th></tr></thead>
+      <table class="plain flags-table">
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Reason Code</th>
+            <th>MLS #</th>
+            <th>Target Field</th>
+            <th>Detailed Description / Message</th>
+            <th>Evidence</th>
+          </tr>
+        </thead>
         <tbody>
         {% for f in flags %}
-          <tr><td><span class="sev sev-{{ f.severity|lower }}">{{ f.severity|lower|capfirst }}</span></td><td><code>{{ f.reason }}</code></td><td>{{ f.mls_number|default:"—" }}</td><td>{{ f.message }}</td></tr>
+          <tr class="flag-row flag-row-{{ f.severity|lower }}" data-sev="{{ f.severity }}">
+            <td><span class="sev sev-{{ f.severity|lower }}">{{ f.severity }}</span></td>
+            <td><code class="flag-code">{{ f.reason }}</code></td>
+            <td><strong>{{ f.mls_number|default:"—" }}</strong></td>
+            <td><span class="flag-field">{{ f.field|default:"—" }}</span></td>
+            <td class="flag-msg">{{ f.message }}</td>
+            <td class="flag-ev">{{ f.evidence|default:"—" }}</td>
+          </tr>
         {% endfor %}
         </tbody>
       </table>
     </div>
-  </details>
+    {% else %}
+      <p class="hint">No diagnostic flags generated for this run.</p>
+    {% endif %}
+  </section>
 
   <details class="studio-card collapsible-card">
     <summary><h2>Excluded rows <span class="count">{{ excluded|length }}</span></h2></summary>
@@ -420,4 +553,99 @@
     </ul>
   </section>
 </div>
+
+<script>
+function fetchAIOverview(force) {
+  const loading = document.getElementById("ai-overview-loading");
+  const content = document.getElementById("ai-overview-content");
+  const modelTag = document.getElementById("ai-model-name");
+  const refreshBtn = document.getElementById("ai-refresh-btn");
+
+  if (loading) loading.style.display = "block";
+  if (content && force) content.style.display = "none";
+  if (refreshBtn) refreshBtn.disabled = true;
+
+  const url = "{% url 'ai_overview' run_id %}" + (force ? "?force=1" : "");
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "ok" && data.overview) {
+        renderAIOverview(data.overview);
+      }
+    })
+    .catch(err => {
+      console.error("AI Overview failed:", err);
+      if (loading) {
+        loading.innerHTML = '<p class="hint" style="color:#b91c1c;padding:1rem;">Could not load AI overview. Click Regenerate to retry.</p>';
+      }
+    })
+    .finally(() => {
+      if (refreshBtn) refreshBtn.disabled = false;
+    });
+}
+
+function renderAIOverview(ov) {
+  const loading = document.getElementById("ai-overview-loading");
+  const content = document.getElementById("ai-overview-content");
+  const modelTag = document.getElementById("ai-model-name");
+
+  if (modelTag) {
+    modelTag.textContent = ov.model_used || "AI Synthesizer";
+  }
+
+  let valRangeText = "Supported Market Bracket";
+  if (ov.indicated_value_low && ov.indicated_value_high) {
+    valRangeText = "$" + Number(ov.indicated_value_low).toLocaleString() + " – $" + Number(ov.indicated_value_high).toLocaleString();
+  }
+
+  content.innerHTML = `
+    <div class="ai-lead-summary">
+      <p class="ai-para">${(ov.executive_summary || "").replace(/\\n/g, '<br><br>')}</p>
+    </div>
+    <div class="ai-spec-grid">
+      <div class="ai-spec-card">
+        <span class="ai-spec-title">Search Scope &amp; Market Depth</span>
+        <p>${ov.search_parameters_analysis || "—"}</p>
+      </div>
+      <div class="ai-spec-card">
+        <span class="ai-spec-title">Subject Bracketing Analysis</span>
+        <p>${ov.bracketing_evaluation || "—"}</p>
+      </div>
+      <div class="ai-spec-card">
+        <span class="ai-spec-title">New Construction &amp; Underwriting Flags</span>
+        <p>${ov.new_construction_and_flags_review || "—"}</p>
+      </div>
+      <div class="ai-spec-card ai-val-card">
+        <span class="ai-spec-title">Indicated Market Valuation Bracket</span>
+        <div class="ai-val-box">
+          <span class="ai-val-range">${valRangeText}</span>
+          <p class="ai-val-note">${ov.valuation_bracket_conclusion || "—"}</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (loading) loading.style.display = "none";
+  if (content) content.style.display = "block";
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  {% if not ai_overview %}
+    fetchAIOverview(false);
+  {% endif %}
+});
+
+function filterFlags(sev) {
+  const rows = document.querySelectorAll(".flag-row");
+  const buttons = document.querySelectorAll(".btn-flag-filter");
+  buttons.forEach(b => b.classList.toggle("active", b.dataset.sev === sev));
+  rows.forEach(r => {
+    if (sev === "ALL" || r.dataset.sev === sev) {
+      r.style.display = "";
+    } else {
+      r.style.display = "none";
+    }
+  });
+}
+</script>
 {% endblock %}

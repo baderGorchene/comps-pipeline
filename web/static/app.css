@@ -1574,3 +1574,323 @@ details.collapsible-card[open] > summary {
   .command-bar { flex-direction: column; align-items: stretch; }
   .topbar-inner { flex-direction: column; align-items: flex-start; }
 }
+
+/* AI Executive Appraisal Overview Studio Panel */
+.ai-overview-panel {
+  background: linear-gradient(180deg, #FFFFFF 0%, #FAFAFA 100%);
+  border: 1px solid #D4D4D8;
+  border-left: 4px solid #18181B;
+  box-shadow: 0 4px 20px -2px rgba(9, 9, 11, 0.05);
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: visible;
+}
+.ai-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.ai-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  background: #18181B;
+  color: #FFFFFF;
+  padding: .25rem .65rem;
+  border-radius: 4px;
+}
+.ai-sparkle { color: #F59E0B; }
+.ai-head-actions {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+.ai-model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: .75rem;
+  font-weight: 600;
+  color: #3F3F46;
+  background: #F4F4F5;
+  border: 1px solid #E4E4E7;
+  padding: .25rem .6rem;
+  border-radius: 4px;
+}
+.ai-model-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10B981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+.ai-loading-container {
+  padding: 2.25rem 1.5rem;
+  background: #FAFAFA;
+  border-radius: 8px;
+  border: 1px dashed #D4D4D8;
+  margin-top: .75rem;
+}
+.ai-spinner-row {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+.ai-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #E4E4E7;
+  border-top-color: #18181B;
+  border-radius: 50%;
+  animation: ai-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
+}
+.ai-spinner-meta strong {
+  font-size: .9375rem;
+  color: #18181B;
+  display: block;
+}
+.ai-spinner-meta .hint {
+  margin: .2rem 0 0;
+  font-size: .8125rem;
+  color: #71717A;
+}
+.ai-lead-summary {
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin-top: .75rem;
+  margin-bottom: 1.25rem;
+}
+.ai-para {
+  font-size: .9375rem;
+  line-height: 1.65;
+  color: #27272A;
+  margin: 0;
+}
+.ai-spec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.ai-spec-card {
+  background: #FFFFFF;
+  border: 1px solid #E4E4E7;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+}
+.ai-spec-title {
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #71717A;
+  margin-bottom: .45rem;
+}
+.ai-spec-card p {
+  font-size: .875rem;
+  line-height: 1.55;
+  color: #3F3F46;
+  margin: 0;
+}
+.ai-val-card {
+  background: linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%);
+  border-color: #CBD5E1;
+}
+.ai-val-box {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+.ai-val-range {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0F172A;
+  letter-spacing: -.02em;
+}
+.ai-val-note {
+  font-size: .8125rem !important;
+  color: #475569 !important;
+  line-height: 1.45 !important;
+}
+
+/* Diagnostic Flags Display in Tables & Main Section */
+.flags-head {
+  min-width: 170px;
+}
+.flags-cell {
+  vertical-align: middle;
+}
+.comp-flags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+  align-items: center;
+}
+.flag-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .7rem;
+  font-weight: 600;
+  padding: .18rem .5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  cursor: help;
+  transition: transform .1s ease, box-shadow .1s ease;
+}
+.flag-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.flag-chip-sev {
+  text-transform: uppercase;
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  opacity: .85;
+}
+.flag-chip-reason {
+  font-family: "JetBrains Mono", monospace;
+  font-size: .675rem;
+}
+.flag-chip-review {
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FCD34D;
+}
+.flag-chip-blocking {
+  background: #FEE2E2;
+  color: #991B1B;
+  border: 1px solid #FCA5A5;
+}
+.flag-chip-info {
+  background: #F4F4F5;
+  color: #52525B;
+  border: 1px solid #E4E4E7;
+}
+.flag-clean {
+  display: inline-block;
+  font-size: .75rem;
+  color: #059669;
+  font-weight: 500;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  padding: .15rem .45rem;
+  border-radius: 4px;
+}
+
+/* Tooltip for Flag Chips */
+.flag-chip-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #18181B;
+  color: #FFFFFF;
+  padding: .5rem .75rem;
+  border-radius: 6px;
+  font-size: .75rem;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  width: 260px;
+  max-width: 320px;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  pointer-events: none;
+  transition: opacity .15s ease, visibility .15s ease;
+}
+.flag-chip:hover .flag-chip-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+.flag-chip-tooltip strong {
+  display: block;
+  font-size: .75rem;
+  font-family: "JetBrains Mono", monospace;
+  margin-bottom: .2rem;
+  color: #FCD34D;
+}
+.flag-chip-tooltip small {
+  display: block;
+  margin-top: .3rem;
+  color: #A1A1AA;
+}
+
+/* Open Underwriting Audit Flags Panel */
+.flags-panel {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+.flags-filters-bar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.btn-flag-filter {
+  font-size: .75rem;
+  font-weight: 600;
+  padding: .3rem .7rem;
+  border-radius: 4px;
+  border: 1px solid #D4D4D8;
+  background: #FFFFFF;
+  color: #3F3F46;
+  cursor: pointer;
+  transition: all .12s ease;
+}
+.btn-flag-filter:hover {
+  background: #F4F4F5;
+  color: #18181B;
+}
+.btn-flag-filter.active {
+  background: #18181B;
+  color: #FFFFFF;
+  border-color: #18181B;
+}
+.flags-table th {
+  white-space: nowrap;
+}
+.flag-code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: .75rem;
+  font-weight: 600;
+  background: #F4F4F5;
+  padding: .15rem .4rem;
+  border-radius: 4px;
+}
+.flag-field {
+  font-family: "JetBrains Mono", monospace;
+  font-size: .75rem;
+  color: #52525B;
+}
+.flag-msg {
+  font-size: .85rem;
+  color: #27272A;
+  line-height: 1.45;
+  min-width: 280px;
+}
+.flag-ev {
+  font-size: .8125rem;
+  color: #71717A;
+}
+@media (max-width: 800px) {
+  .ai-spec-grid { grid-template-columns: 1fr; }
+}

@@ -22,8 +22,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY --chown=user . $HOME/app
 
 # Ensure writable directories exist for runtime output/input
-RUN mkdir -p data/input data/output data/cache && \
+RUN mkdir -p data/input data/output data/cache staticfiles && \
     chown -R user:user $HOME/app
+
+# Collect static assets for production serving via whitenoise
+RUN python manage.py collectstatic --noinput
 
 USER user
 

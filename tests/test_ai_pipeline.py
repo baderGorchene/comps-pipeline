@@ -1,17 +1,12 @@
 """Tests for AI Pipeline Specification (Version 3.6)."""
 
 import csv
-import json
-from pathlib import Path
-
-import pytest
 
 from comps_pipeline import pipeline
-from comps_pipeline.ai.parsers import LeaseAnalysisResult, OwnerClassificationResult
 from comps_pipeline.ai.router import AIModelRouter
 from comps_pipeline.ingest.cleaner import clean
-from comps_pipeline.models import Cell, FlagReason, Subject
-from tests.conftest import SAMPLES, make_comp
+from comps_pipeline.models import FlagReason
+from tests.conftest import SAMPLES
 
 CSV, SUBJECT = SAMPLES / "mls_sample.csv", SAMPLES / "subject.yaml"
 
