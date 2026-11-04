@@ -19,13 +19,16 @@
 flowchart TD
     A["Subject Property + MLS CSV Export + Settings"] --> B["Stage 1: Ingest & Column Mapping (ingest/mapper.py)"]
     B --> C["Stage 2: Clean, Validate, NLP Signals & Pool Split (ingest/cleaner.py)"]
-    C --> D["Stage 3a: Geographic Distance (filters/geo.py)"]
-    D --> E["Stage 3b: Subdivision Normalization & Tiering (matching/subdivision.py)"]
-    E --> F["Stage 4: Hard Filters & Cumulative Escalation (filters/hard_filters.py, escalation.py)"]
-    F --> G["Stage 5: Tolerance Ranking & Dynamic Shortlist (ranking/ranker.py)"]
-    G --> H["Stage 6: Final Selection & Bracketing Swaps (selection/final.py)"]
-    H --> I["Stage 7: Output Generation & Run Manifest (outputs/writers.py)"]
+    C --> D["Stage 3: Geospatial Distance & 4-Tier Subdivision (filters/geo.py, matching/subdivision.py)"]
+    D --> E["Stage 4: Hard Price Gate, Criteria & Escalation (filters/hard_filters.py, escalation.py)"]
+    E --> F["Stage 5: 7-Tier Tolerance Ranking & New Const Quotas (ranking/ranker.py)"]
+    F --> G["Stage 6: Final Selection & Greedy Bracketing Swaps (selection/final.py)"]
+    G --> H["Stage 7: AI Executive Overview & Dual-Provider Router (ai/router.py)"]
+    H --> I["Stage 8: Workfile Artifacts & Run Manifest (outputs/writers.py)"]
 ```
+
+> [!NOTE]
+> A comprehensive visual canvas with separated micro-to-macro functional nodes, visual grouping swimlanes, and directional data-flow edges is maintained in [`docs/shortlisting detailed diagram.canvas`](file:///d:/upwork/sam%20safak/comps-pipeline/docs/shortlisting%20detailed%20diagram.canvas).
 
 ### Stage 1: Ingest & Column Mapping (`comps_pipeline.ingest.mapper`)
 - Reads raw CSV files using multi-encoding detection (`utf-8-sig`, fallback to `cp1252`).
