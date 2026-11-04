@@ -1359,7 +1359,7 @@ button.primary:hover, a.primary:hover {
   border-radius: 999px;
   overflow: hidden;
 }
-.filter-bar-fill { height: 100%; background: var(--ink); }
+.filter-bar-fill { height: 100%; background: var(--ink); width: 0%; transition: width 0.3s ease; }
 .hierarchy-pills {
   display: flex;
   flex-wrap: wrap;

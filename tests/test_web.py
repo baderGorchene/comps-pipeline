@@ -66,6 +66,9 @@ def test_form_page_loads_with_defaults(client):
     assert "Build shortlist" in html and "±25%" in html
     assert 'name="gla_bracket_pct"' not in html  # config is separated from the main page
 
+    history_page = client.get("/runs/")
+    assert history_page.status_code == 200
+
     cfg_page = client.get("/config/").content.decode()
     assert 'value="25"' in cfg_page
     assert "max_distance_miles = 4.0" in cfg_page  # escalation steps from settings.yaml
@@ -188,5 +191,18 @@ def test_ai_overview_endpoint_and_results_display(client):
     # Ensure human-readable flag label is rendered rather than raw SCREAMING_SNAKE_CASE
     assert "flag-chip-label" in page
     assert "INDIVIDUAL_OWNER_NEW_BUILD" not in data["overview"]["new_construction_and_flags_review"]
+
+
+def test_all_templates_compile_cleanly():
+    """Verify that every template in web/templates parses without TemplateSyntaxError."""
+    from pathlib import Path
+
+    from django.template.loader import get_template
+
+    template_dir = Path("web/templates")
+    for tmpl in template_dir.glob("*.html"):
+        loaded = get_template(tmpl.name)
+        assert loaded is not None
+
 
 

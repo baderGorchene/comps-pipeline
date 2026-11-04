@@ -26,23 +26,20 @@
       </div>
 
       <nav class="topnav" aria-label="Main navigation">
-        <a href="{% url 'new_run' %}" class="topnav-link" {% if request.resolver_match.url_name=='new_run'
-          %}aria-current="page" {% endif %}>
+        <a href="{% url 'new_run' %}" class="topnav-link"{% if request.resolver_match.url_name == 'new_run' %} aria-current="page"{% endif %}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
           <span>New Run</span>
         </a>
-        <a href="{% url 'history' %}" class="topnav-link" {% if request.resolver_match.url_name=='history' or
-          request.resolver_match.url_name=='results' %}aria-current="page" {% endif %}>
+        <a href="{% url 'history' %}" class="topnav-link"{% if request.resolver_match.url_name == 'history' or request.resolver_match.url_name == 'results' %} aria-current="page"{% endif %}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 3v18h18" />
             <path d="m19 9-5 5-4-4-3 3" />
           </svg>
           <span>Past Runs</span>
         </a>
-        <a href="{% url 'config' %}" class="topnav-link" {% if request.resolver_match.url_name=='config'
-          %}aria-current="page" {% endif %}>
+        <a href="{% url 'config' %}" class="topnav-link"{% if request.resolver_match.url_name == 'config' %} aria-current="page"{% endif %}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3" />
             <path

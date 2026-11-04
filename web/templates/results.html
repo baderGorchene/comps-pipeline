@@ -81,7 +81,7 @@
   </section>
 
   <!-- AI Executive Appraisal Overview (Loads Asynchronously After Pipeline Completion) -->
-  <section class="studio-card ai-overview-panel" id="ai-overview-card">
+  <section class="studio-card ai-overview-panel" id="ai-overview-card" data-has-overview="{% if ai_overview %}true{% else %}false{% endif %}">
     <div class="studio-card-head ai-head">
       <div class="studio-title-wrap">
         <span class="ai-pill"><span class="ai-sparkle">✦</span> AI APPRAISAL OVERVIEW</span>
@@ -280,7 +280,7 @@
                 <span>{{ r.label }}</span>
                 <strong>{{ r.count }}</strong>
               </div>
-              <div class="filter-bar-track"><div class="filter-bar-fill" style="width:{{ r.pct }}%;"></div></div>
+              <div class="filter-bar-track"><div class="filter-bar-fill" data-pct="{{ r.pct }}"></div></div>
             </div>
             {% endfor %}
           </div>
@@ -635,9 +635,13 @@ function renderAIOverview(ov) {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-  {% if not ai_overview %}
+  document.querySelectorAll(".filter-bar-fill[data-pct]").forEach(function(el) {
+    el.style.width = el.dataset.pct + "%";
+  });
+  const card = document.getElementById("ai-overview-card");
+  if (card && card.dataset.hasOverview !== "true") {
     fetchAIOverview(false);
-  {% endif %}
+  }
 });
 
 function filterFlags(sev) {
