@@ -27,11 +27,11 @@
           {% if r.flags %}
             <div class="comp-flags-list">
               {% for f in r.flags %}
-                <span class="flag-chip flag-chip-{{ f.severity|lower }}" title="[{{ f.severity }}] {{ f.reason }}: {{ f.message }}{% if f.evidence %} (Evidence: {{ f.evidence }}){% endif %}">
-                  <span class="flag-chip-sev">{{ f.severity|lower }}</span>
-                  <span class="flag-chip-reason">{{ f.reason }}</span>
+                <span class="flag-chip flag-chip-{{ f.severity|lower }}" title="[{{ f.severity }}] {{ f.label }}: {{ f.message }}{% if f.evidence %} (Evidence: {{ f.evidence }}){% endif %}">
+                  <span class="flag-dot flag-dot-{{ f.severity|lower }}"></span>
+                  <span class="flag-chip-label">{{ f.label }}</span>
                   <span class="flag-chip-tooltip">
-                    <strong>[{{ f.severity }}] {{ f.reason }}</strong>
+                    <strong>[{{ f.severity }}] {{ f.label }}</strong>
                     <span>{{ f.message }}</span>
                     {% if f.evidence %}<small>Evidence: {{ f.evidence }}</small>{% endif %}
                   </span>

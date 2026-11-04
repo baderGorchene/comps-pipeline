@@ -178,11 +178,15 @@ def test_ai_overview_endpoint_and_results_display(client):
     assert resp2.status_code == 200
     assert resp2.json()["cached"] is True
 
-    # Check results page renders overview and detailed flags
+    # Check results page renders overview and detailed flags with human labels
     page = client.get(f"/runs/{run_id}/").content.decode()
     assert "AI APPRAISAL OVERVIEW" in page
     assert "Flags &amp; Diagnostic Notices" in page
     assert "Underwriting Audit" in page or "UNDERWRITING AUDIT" in page
     assert "ai-overview-panel" in page
+    assert "flag-chip" in page
+    # Ensure human-readable flag label is rendered rather than raw SCREAMING_SNAKE_CASE
+    assert "flag-chip-label" in page
+    assert "INDIVIDUAL_OWNER_NEW_BUILD" not in data["overview"]["new_construction_and_flags_review"]
 
 

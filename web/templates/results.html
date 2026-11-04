@@ -362,9 +362,9 @@
               {% if r.flags %}
                 <div class="comp-flags-list">
                   {% for f in r.flags %}
-                    <span class="flag-chip flag-chip-{{ f.severity|lower }}" title="[{{ f.severity }}] {{ f.reason }}: {{ f.message }}">
-                      <span class="flag-chip-sev">{{ f.severity|lower }}</span>
-                      <span class="flag-chip-reason">{{ f.reason }}</span>
+                    <span class="flag-chip flag-chip-{{ f.severity|lower }}" title="[{{ f.severity }}] {{ f.label }}: {{ f.message }}">
+                      <span class="flag-dot flag-dot-{{ f.severity|lower }}"></span>
+                      <span class="flag-chip-label">{{ f.label }}</span>
                     </span>
                   {% endfor %}
                 </div>
@@ -428,9 +428,9 @@
               {% if r.flags %}
                 <div class="comp-flags-list">
                   {% for f in r.flags %}
-                    <span class="flag-chip flag-chip-{{ f.severity|lower }}" title="[{{ f.severity }}] {{ f.reason }}: {{ f.message }}">
-                      <span class="flag-chip-sev">{{ f.severity|lower }}</span>
-                      <span class="flag-chip-reason">{{ f.reason }}</span>
+                    <span class="flag-chip flag-chip-{{ f.severity|lower }}" title="[{{ f.severity }}] {{ f.label }}: {{ f.message }}">
+                      <span class="flag-dot flag-dot-{{ f.severity|lower }}"></span>
+                      <span class="flag-chip-label">{{ f.label }}</span>
                     </span>
                   {% endfor %}
                 </div>
@@ -509,7 +509,12 @@
         {% for f in flags %}
           <tr class="flag-row flag-row-{{ f.severity|lower }}" data-sev="{{ f.severity }}">
             <td><span class="sev sev-{{ f.severity|lower }}">{{ f.severity }}</span></td>
-            <td><code class="flag-code">{{ f.reason }}</code></td>
+            <td>
+              <div class="flag-title-cell">
+                <strong>{{ f.label }}</strong>
+                <code class="flag-subcode">{{ f.reason }}</code>
+              </div>
+            </td>
             <td><strong>{{ f.mls_number|default:"—" }}</strong></td>
             <td><span class="flag-field">{{ f.field|default:"—" }}</span></td>
             <td class="flag-msg">{{ f.message }}</td>

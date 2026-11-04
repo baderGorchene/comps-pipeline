@@ -5,6 +5,7 @@ Fallback: Google gemini-flash-latest
 Heuristic Fallback: zero-downtime offline rule-based parser
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -32,6 +33,26 @@ log = logging.getLogger(__name__)
 
 PRIMARY_MODEL = "gpt-6.1-terra"
 FALLBACK_MODEL = "gemini-flash-latest"
+
+HUMAN_FLAG_NAMES: dict[str, str] = {
+    "MISSING_REQUIRED_FIELD": "Missing Required Field",
+    "INVALID_VALUE": "Invalid Value",
+    "DUPLICATE_LISTING": "Duplicate Listing",
+    "NO_COORDINATES": "Distance Fallback",
+    "SUBDIVISION_UNCERTAIN": "Uncertain Subdivision Match",
+    "SHORTLIST_BELOW_MINIMUM": "Shortlist Below Minimum",
+    "STATUS_NOT_USED": "Excluded Status",
+    "CRITERIA_RELAXED": "Criteria Relaxation",
+    "NOT_BRACKETED": "Unbracketed Attribute",
+    "NO_LISTING_COMP": "Missing Listing Comp",
+    "NON_CONFORMING_CONVERSION": "Garage Conversion Review",
+    "SOLAR_LEASE_REVIEW": "Solar Panel Lease Review",
+    "ADU_DETECTED": "ADU / Guest Quarters",
+    "SITE_INFLUENCE_NOTE": "Site / External Influence",
+    "LEASED_NEW_BUILD_REVIEW": "Leased New Construction Review",
+    "INDIVIDUAL_OWNER_NEW_BUILD": "Individual Owner on New Build",
+    "NEW_CONST_SUBDIVISION_DEFICIT": "Subdivision Allocation Deficit",
+}
 
 
 def _load_env_keys() -> tuple[str, str]:
@@ -75,7 +96,7 @@ class AIModelRouter:
         self,
         primary_model: str = PRIMARY_MODEL,
         fallback_model: str = FALLBACK_MODEL,
-        timeout: float = 8.0,
+        timeout: float = 25.0,
     ) -> None:
         self.primary_model = primary_model
         self.fallback_model = fallback_model
@@ -88,14 +109,16 @@ class AIModelRouter:
             raise ValueError("OPENAI_API_KEY is not set or invalid.")
 
         url = "https://api.openai.com/v1/chat/completions"
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.primary_model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": 0.2,
         }
+        # Reasoning and terra-tier models only allow the default temperature (1)
+        if not any(k in self.primary_model.lower() for k in ("terra", "o1", "o3", "reasoning")):
+            payload["temperature"] = 0.2
         req = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
@@ -145,6 +168,17 @@ class AIModelRouter:
         try:
             raw = self._call_openai(system_prompt, user_prompt)
             return raw, self.primary_model
+        except urllib.error.HTTPError as e:
+            detail = ""
+            with contextlib.suppress(Exception):
+                detail = f" - {e.read().decode('utf-8')}"
+            log.warning(
+                "[AI_ROUTER_FALLBACK_TRIGGERED: %s -> %s] Primary call failed: %s%s",
+                self.primary_model,
+                self.fallback_model,
+                e,
+                detail,
+            )
         except Exception as e:
             log.warning(
                 "[AI_ROUTER_FALLBACK_TRIGGERED: %s -> %s] Primary call failed: %s",
@@ -157,6 +191,16 @@ class AIModelRouter:
         try:
             raw = self._call_gemini(system_prompt, user_prompt)
             return raw, self.fallback_model
+        except urllib.error.HTTPError as e:
+            detail = ""
+            with contextlib.suppress(Exception):
+                detail = f" - {e.read().decode('utf-8')}"
+            log.warning(
+                "Fallback call %s also failed or was unconfigured: %s%s",
+                self.fallback_model,
+                e,
+                detail,
+            )
         except Exception as e:
             log.warning(
                 "Fallback call %s also failed or was unconfigured: %s",
@@ -385,8 +429,14 @@ class AIModelRouter:
             f"- Shortlisted Candidates: {total_shortlist} total ({shortlist_sold} Sold, {shortlist_listing} Listings)\n"
             f"- Final Appraisal Grid: {final_count} comps selected ({len(sold_picks)} Sold + {final_count - len(sold_picks)} Listings)\n"
             f"- Rule Escalation Level: {manifest.get('escalation_level', 0)}\n"
-            f"- Review Flags: {len(review_flags)} items ({', '.join(set(f.get('reason', '') for f in review_flags))})\n\n"
-            f"Final Selected Comps:\n"
+            + (
+                f"- Review Flags: {len(review_flags)} items ("
+                f"{', '.join(sorted({HUMAN_FLAG_NAMES.get(f.get('reason', ''), f.get('reason', '').replace('_', ' ').title()) for f in review_flags}))}"
+                f")\n\n"
+                if review_flags
+                else "- Review Flags: None\n\n"
+            )
+            + "Final Selected Comps:\n"
         )
         for i, p in enumerate(final_picks, 1):
             mls = p.get("mls_number")
@@ -495,14 +545,25 @@ class AIModelRouter:
             f"attribute distorts the indicated market value."
         )
 
+        reason_set = {f.get("reason", "") for f in review_flags if f.get("reason")}
+        human_reasons = [
+            HUMAN_FLAG_NAMES.get(r, r.replace("_", " ").title())
+            for r in sorted(reason_set)
+        ]
+        if human_reasons:
+            if len(human_reasons) > 3:
+                sample_str = f"including {human_reasons[0]}, {human_reasons[1]}, and {human_reasons[2]}"
+            elif len(human_reasons) == 1:
+                sample_str = f"specifically regarding {human_reasons[0]}"
+            else:
+                sample_str = f"including {', '.join(human_reasons[:-1])} and {human_reasons[-1]}"
+            flags_clause = f"A total of {len(review_flags)} diagnostic review notices were audited ({sample_str}), "
+        else:
+            flags_clause = "No high-severity underwriting review notices were encountered, "
+
         nc_flags_review = (
             "Subdivision allocation quotas and condition ratings were verified. "
-            + (
-                f"A total of {len(review_flags)} diagnostic review notices were audited "
-                f"({', '.join(sorted(set(f.get('reason', '') for f in review_flags)))}), "
-                if review_flags
-                else "No high-severity underwriting flags were encountered, "
-            )
+            + flags_clause
             + "confirming that candidate financing terms, remarks signals, and property conditions meet secondary market requirements."
         )
 

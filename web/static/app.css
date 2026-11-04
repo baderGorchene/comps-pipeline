@@ -1737,19 +1737,20 @@ details.collapsible-card[open] > summary {
 .comp-flags-list {
   display: flex;
   flex-wrap: wrap;
-  gap: .3rem;
+  gap: .35rem;
   align-items: center;
 }
 .flag-chip {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: .3rem;
-  font-size: .7rem;
+  gap: .35rem;
+  font-size: .72rem;
   font-weight: 600;
-  padding: .18rem .5rem;
-  border-radius: 4px;
+  padding: .2rem .55rem;
+  border-radius: 9999px;
   white-space: nowrap;
+  line-height: 1.25;
   cursor: help;
   transition: transform .1s ease, box-shadow .1s ease;
 }
@@ -1757,16 +1758,19 @@ details.collapsible-card[open] > summary {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-.flag-chip-sev {
-  text-transform: uppercase;
-  font-size: .625rem;
-  font-weight: 700;
-  letter-spacing: .03em;
-  opacity: .85;
+.flag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
-.flag-chip-reason {
-  font-family: "JetBrains Mono", monospace;
-  font-size: .675rem;
+.flag-dot-review { background: #D97706; }
+.flag-dot-blocking { background: #DC2626; }
+.flag-dot-info { background: #71717A; }
+.flag-chip-label {
+  font-family: inherit;
+  font-size: .72rem;
+  font-weight: 600;
 }
 .flag-chip-review {
   background: #FEF3C7;
@@ -1780,8 +1784,25 @@ details.collapsible-card[open] > summary {
 }
 .flag-chip-info {
   background: #F4F4F5;
-  color: #52525B;
-  border: 1px solid #E4E4E7;
+  color: #3F3F46;
+  border: 1px solid #D4D4D8;
+}
+.flag-title-cell {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+.flag-title-cell strong {
+  font-size: .85rem;
+  color: #18181B;
+}
+.flag-subcode {
+  font-family: "JetBrains Mono", monospace;
+  font-size: .7rem;
+  color: #71717A;
+  background: none;
+  border: none;
+  padding: 0;
 }
 .flag-clean {
   display: inline-block;

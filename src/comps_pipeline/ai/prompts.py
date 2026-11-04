@@ -53,6 +53,9 @@ Analyze:
 4. "new_construction_and_flags_review": Specific analysis of New Construction subdivision quotas (in-subdivision vs out-of-subdivision allocation), verified builder delivery (C1) vs tenant lease indicators (C2), and resolution of any diagnostic review flags.
 5. "valuation_bracket_conclusion": Indicated market valuation bracket (low, high, median closed price and price-per-square-foot) and final workfile recommendation.
 
+CRITICAL FORMATTING REQUIREMENT:
+Write strictly in professional real estate appraisal terminology. NEVER output raw SCREAMING_SNAKE_CASE code keys (such as INDIVIDUAL_OWNER_NEW_BUILD, SOLAR_LEASE_REVIEW, or SUBDIVISION_UNCERTAIN). Always convert any internal concepts into clean natural English (e.g. "private individual owner on new build", "solar panel lease verification", "fuzzy subdivision match").
+
 Return valid JSON with keys:
 {
   "executive_summary": "...",

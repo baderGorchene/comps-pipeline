@@ -65,6 +65,26 @@ HIERARCHY_LABELS = {
     "baths": "Bathroom Count",
 }
 
+FLAG_HUMAN_LABELS: dict[str, str] = {
+    "MISSING_REQUIRED_FIELD": "Missing Required Field",
+    "INVALID_VALUE": "Invalid Value",
+    "DUPLICATE_LISTING": "Duplicate Listing",
+    "NO_COORDINATES": "Distance Fallback",
+    "SUBDIVISION_UNCERTAIN": "Subdivision Uncertain",
+    "SHORTLIST_BELOW_MINIMUM": "Shortlist Below Minimum",
+    "STATUS_NOT_USED": "Excluded Status",
+    "CRITERIA_RELAXED": "Criteria Relaxed",
+    "NOT_BRACKETED": "Not Bracketed",
+    "NO_LISTING_COMP": "Missing Listing Comp",
+    "NON_CONFORMING_CONVERSION": "Garage Conversion",
+    "SOLAR_LEASE_REVIEW": "Solar Panel Lease",
+    "ADU_DETECTED": "ADU Detected",
+    "SITE_INFLUENCE_NOTE": "Site Influence",
+    "LEASED_NEW_BUILD_REVIEW": "Leased New Build",
+    "INDIVIDUAL_OWNER_NEW_BUILD": "Individual Owner",
+    "NEW_CONST_SUBDIVISION_DEFICIT": "Subdivision Deficit",
+}
+
 
 def _config() -> dict[str, Any]:
     return load_settings(django_settings.CONFIG_FILE).model_dump(mode="json")
@@ -662,12 +682,17 @@ def results(request: HttpRequest, run_id: str) -> HttpResponse:
     cfg = manifest["config_snapshot"]
     gaps = {f["field"] for f in flags if f["reason"] == "NOT_BRACKETED"}
     picked = {c["mls_number"] for c in final}
+    enriched_flags: list[dict[str, Any]] = []
     flags_by_mls: dict[str, list[dict[str, Any]]] = {}
     for f in flags:
+        reason = f.get("reason", "")
+        human_label = FLAG_HUMAN_LABELS.get(reason, str(reason).replace("_", " ").title())
+        enriched = {**f, "label": human_label}
+        enriched_flags.append(enriched)
         m = f.get("mls_number")
         if m:
-            flags_by_mls.setdefault(m, []).append(f)
-    blocking = [f for f in flags if f["severity"] == "BLOCKING"]
+            flags_by_mls.setdefault(m, []).append(enriched)
+    blocking = [f for f in enriched_flags if f["severity"] == "BLOCKING"]
     attempts = manifest.get("escalation_attempts", [])
     level = manifest.get("escalation_level", 0)
     steps = [
@@ -684,7 +709,7 @@ def results(request: HttpRequest, run_id: str) -> HttpResponse:
     ]
     severity_order = {"BLOCKING": 0, "REVIEW": 1, "INFO": 2}
     pipeline_trace = _build_pipeline_trace(
-        manifest, audit, shortlist, final, flags, subject, steps
+        manifest, audit, shortlist, final, enriched_flags, subject, steps
     )
     unused_path = run_dir / "analyzed_not_used.json"
     if unused_path.is_file():
@@ -715,8 +740,8 @@ def results(request: HttpRequest, run_id: str) -> HttpResponse:
         ],
         "total_shortlist": len(shortlist),
         "excluded": excluded,
-        "flags": sorted(flags, key=lambda f: (severity_order[f["severity"]], f["id"])),
-        "review_count": sum(f["severity"] == "REVIEW" for f in flags),
+        "flags": sorted(enriched_flags, key=lambda f: (severity_order[f["severity"]], f["id"])),
+        "review_count": sum(f["severity"] == "REVIEW" for f in enriched_flags),
         "counts": manifest["row_counts"],
         "input_name": Path(manifest["input_file"]).name,
         "downloads": [n for n in DOWNLOADS if (run_dir / n).is_file()],
