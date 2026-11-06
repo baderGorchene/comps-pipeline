@@ -279,7 +279,6 @@ def how_it_works(request: HttpRequest) -> HttpResponse:
             "relax_steps": [_describe_step(s) for s in cfg["escalation"]["steps"]],
             "guardrails": [text for on, text in guardrails if on],
             "vision": cfg.get("vision", {}),
-            "flag_labels": FLAG_HUMAN_LABELS,
         },
     )
 

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}How it works · Comps Shortlist{% endblock %}
+{% block content %}
+<div class="page narrow">
+  <div class="page-head">
+    <h1>How it works</h1>
+    <p class="lead">You give the tool an MLS export and the house you're appraising. It narrows
+      hundreds of listings down to {{ summary.sold_count }} sold comps and {{ summary.listing_count }}
+      active listing, and tells you why at every step. The numbers below are your current
+      <a href="{% url 'config' %}">settings</a>.</p>
+  </div>
+
+  <nav class="toc card" aria-label="On this page">
+    <strong>The short version</strong>
+    <ol>
+      <li><a href="#read">Read your file</a></li>
+      <li><a href="#clean">Clean it up</a></li>
+      <li><a href="#measure">Measure each property</a></li>
+      <li><a href="#filter">Apply your rules</a></li>
+      <li><a href="#rank">Rank the best matches</a></li>
+      <li><a href="#photos">Check the photos (optional)</a></li>
+      <li><a href="#pick">Pick the final comps</a></li>
+      <li><a href="#explain">Explain everything</a></li>
+    </ol>
+    <p class="muted small">Steps 1–5 and 7 follow fixed rules: the same file and settings always give the
+      same answer. AI only writes the explanations and, if turned on, checks photos.</p>
+  </nav>
+
+  <section class="explain card" id="read">
+    <span class="step-badge">1</span>
+    <div>
+      <h2>Read your file</h2>
+      <p>Your MLS export can use any column names. The tool matches them to
+        {{ summary.mapped_fields }} standard fields (price, square feet, year built, …) using the list in
+        Settings → CSV columns. Columns it doesn't know are kept but not used for rules.</p>
+    </div>
+  </section>
+
+  <section class="explain card" id="clean">
+    <span class="step-badge">2</span>
+    <div>
+      <h2>Clean it up</h2>
+      <ul>
+        <li>Removes duplicate MLS numbers and rows missing must-have values.</li>
+        <li>Splits the rest into <strong>sold</strong> and <strong>active / option / pending</strong>.
+          Expired, withdrawn and cancelled listings are dropped.</li>
+        <li>Reads the listing remarks for clues: distressed sale, lease or tenant, garage
+          conversion, guest house (ADU), solar lease, waterfront or highway, and condition words.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="explain card" id="measure">
+    <span class="step-badge">3</span>
+    <div>
+      <h2>Measure each property</h2>
+      <ul>
+        <li><strong>Distance</strong> to the house, from map coordinates or the file's distance column.</li>
+        <li><strong>Subdivision match</strong>: same name, a known alias, a close spelling (flagged for you
+          to check), or a different subdivision.</li>
+        <li>How different the living area, lot and age are from the subject.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="explain card" id="filter">
+    <span class="step-badge">4</span>
+    <div>
+      <h2>Apply your rules</h2>
+      <p>A property must pass all of these to stay:</p>
+      <ul class="rule-list">
+        <li>Living area within <strong>±{{ summary.gla_pct }}%</strong> of the subject</li>
+        <li>Lot size within <strong>±{{ summary.lot_pct }}%</strong></li>
+        <li>Within <strong>{{ summary.max_miles }} miles</strong></li>
+        <li>Sold in the last <strong>{{ summary.max_months }} months</strong></li>
+        {% if price_pct %}<li>Price within <strong>±{{ price_pct }}%</strong> of the subject's contract or estimated value</li>{% endif %}
+        {% if summary.require_sub %}<li>Same subdivision only</li>{% endif %}
+      </ul>
+      <details class="more"><summary>Extra safety checks</summary>
+        <ul>{% for g in guardrails %}<li>{{ g }}</li>{% endfor %}</ul>
+      </details>
+      <p><strong>Not enough left?</strong> If fewer than {{ summary.min_shortlist_size }} sold comps pass,
+        the rules are loosened one step at a time until there are enough:</p>
+      {% if relax_steps %}
+      <ol class="small-text">{% for s in relax_steps %}<li>{{ s|capfirst }}</li>{% endfor %}</ol>
+      {% else %}
+      <p class="muted small">No loosening steps are set up.</p>
+      {% endif %}
+      <p class="muted small">Every loosening is reported as a warning so you know it happened.</p>
+    </div>
+  </section>
+
+  <section class="explain card" id="rank">
+    <span class="step-badge">5</span>
+    <div>
+      <h2>Rank the best matches</h2>
+      <p>Sold and active comps are ranked separately. Comps are compared on the first item below; if
+        they're close enough to count as a tie, the next item decides, and so on.</p>
+      <ol class="rule-list">
+        {% for r in ranking %}<li><strong>{{ r.name }}</strong> <span class="muted small">— {{ r.tie }}</span></li>{% endfor %}
+      </ol>
+      <p>The top {{ summary.shortlist_size }} sold and {{ summary.listing_shortlist_size }} active
+        become the <strong>shortlist</strong>.</p>
+    </div>
+  </section>
+
+  <section class="explain card" id="photos">
+    <span class="step-badge">6</span>
+    <div>
+      <h2>Check the photos <span class="pill">{% if vision.enabled %}On{% else %}Off{% endif %}</span></h2>
+      <p>If turned on, an AI model looks at up to {{ vision.max_photos_per_property|default:25 }} listing photos
+        of each shortlisted comp and the subject, and rates condition (C1–C6) and quality (Q1–Q6).</p>
+      <ul>
+        <li>Comps whose photos are {{ vision.rerank_min_delta|default:2 }}+ rating steps away from the subject
+          move down the shortlist. Others keep their place.</li>
+        <li>Scores below {{ vision.min_confidence|default:0.6 }} confidence are recorded but never move a comp.</li>
+        <li>If the photos contradict the remarks (e.g. “renovated kitchen” but old cabinets), you get a warning.</li>
+      </ul>
+      <p class="muted small">Only the shortlist is checked, never the whole file, to keep it fast and cheap.
+        Needs an AI key and a photo URL column. Turn on with <code>vision.enabled</code> in settings.yaml.</p>
+    </div>
+  </section>
+
+  <section class="explain card" id="pick">
+    <span class="step-badge">7</span>
+    <div>
+      <h2>Pick the final comps</h2>
+      <p>The top {{ summary.sold_count }} sold and {{ summary.listing_count }} active comps are picked. Then the tool
+        checks <strong>bracketing</strong>: for each of {{ summary.brackets|join:", " }}, at least one pick
+        should be above the subject and one below.</p>
+      <p class="example">Example: the subject is 2,000 sq ft. Picks of 1,850 and 2,150 bracket it.
+        Picks of 2,100 and 2,300 do not — every comp is bigger.</p>
+      <p>If something isn't bracketed, the tool swaps in the next-best shortlisted comp that fixes it. If
+        none can, you get a warning.</p>
+      <details class="more"><summary>New construction is different</summary>
+        <p>For a brand-new subject (C1), picks are split: 2 sold + 1 active inside the subject's
+          subdivision, 1 sold + 1 active from competing subdivisions, plus 1 more sold. New builds with
+          tenants or private owners are flagged, since they may really be C2.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="explain card" id="explain">
+    <span class="step-badge">8</span>
+    <div>
+      <h2>Explain everything</h2>
+      <ul>
+        <li>Each pick gets a one-line reason it was chosen.</li>
+        <li>Each shortlisted comp that wasn't picked gets a reason it was left out.</li>
+        <li>An AI summary describes the whole run in plain English.</li>
+        <li>Anything unusual becomes a <strong>warning</strong>:
+          <span class="sev sev-blocking">Blocking</span> means the run couldn't finish properly,
+          <span class="sev sev-review">Review</span> means check it,
+          <span class="sev sev-info">Info</span> is just good to know.</li>
+      </ul>
+      <p class="muted small">Every decision is saved to the run's files (audit.jsonl, flags.csv, …) so you
+        can show your work.</p>
+    </div>
+  </section>
+
+  <section class="card glossary">
+    <h2>Words you'll see</h2>
+    <dl>
+      <dt>Comp</dt><dd>A comparable property used to support the value.</dd>
+      <dt>Subject</dt><dd>The house you're appraising.</dd>
+      <dt>GLA</dt><dd>Gross living area — the finished square feet.</dd>
+      <dt>Bracketing</dt><dd>Having comps both above and below the subject on a feature.</dd>
+      <dt>Shortlist</dt><dd>The best-ranked comps before the final pick.</dd>
+      <dt>C1–C6 / Q1–Q6</dt><dd>Standard condition and quality ratings. C1 is new, C6 is poor; Q1 is the best build quality.</dd>
+      <dt>Relaxation</dt><dd>Loosening the rules automatically when too few comps pass.</dd>
+    </dl>
+  </section>
+
+  <p class="center"><a href="{% url 'new_run' %}" class="primary btn-lg">Build a shortlist →</a></p>
+</div>
+{% endblock %}

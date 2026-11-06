@@ -120,8 +120,8 @@ def test_config_page_loads_and_saves_all_files(client):
     page = client.get("/config/")
     assert page.status_code == 200
     html = page.content.decode()
-    assert "Pipeline Rules &amp; Mappings" in html
-    assert "CSV Column Header Mapping" in html
+    assert "<h1>Settings</h1>" in html
+    assert "CSV columns" in html
 
     # Build a full POST payload from initial form values and modify settings, mappings, and aliases
     from django.conf import settings as django_settings
@@ -183,14 +183,21 @@ def test_ai_overview_endpoint_and_results_display(client):
 
     # Check results page renders overview and detailed flags with human labels
     page = client.get(f"/runs/{run_id}/").content.decode()
-    assert "AI APPRAISAL OVERVIEW" in page
-    assert "Flags &amp; Diagnostic Notices" in page
-    assert "Underwriting Audit" in page or "UNDERWRITING AUDIT" in page
+    assert "AI summary" in page
+    assert "Warnings" in page
     assert "ai-overview-panel" in page
     assert "flag-chip" in page
     # Ensure human-readable flag label is rendered rather than raw SCREAMING_SNAKE_CASE
     assert "flag-chip-label" in page
     assert "INDIVIDUAL_OWNER_NEW_BUILD" not in data["overview"]["new_construction_and_flags_review"]
+
+
+def test_how_it_works_uses_live_settings(client):
+    html = client.get("/how-it-works/").content.decode()
+    assert "How it works" in html
+    assert "±25%" in html and "Distance 2.0 mi" in html  # filter + first relaxation step
+    assert "Check the photos" in html and "Off" in html  # vision disabled by default
+    assert 'href="/how-it-works/"' in client.get("/").content.decode()  # linked from nav
 
 
 def test_all_templates_compile_cleanly():
