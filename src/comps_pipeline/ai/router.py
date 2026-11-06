@@ -5,6 +5,7 @@ Fallback: Google gemini-flash-latest
 Heuristic Fallback: zero-downtime offline rule-based parser
 """
 
+import base64
 import contextlib
 import json
 import logging
@@ -33,6 +34,7 @@ log = logging.getLogger(__name__)
 
 PRIMARY_MODEL = "gpt-6.1-terra"
 FALLBACK_MODEL = "gemini-flash-latest"
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # per photo, Gemini inline path only
 
 HUMAN_FLAG_NAMES: dict[str, str] = {
     "MISSING_REQUIRED_FIELD": "Missing Required Field",
@@ -52,6 +54,8 @@ HUMAN_FLAG_NAMES: dict[str, str] = {
     "LEASED_NEW_BUILD_REVIEW": "Leased New Construction Review",
     "INDIVIDUAL_OWNER_NEW_BUILD": "Individual Owner on New Build",
     "NEW_CONST_SUBDIVISION_DEFICIT": "Subdivision Allocation Deficit",
+    "VISUAL_REMARKS_MISMATCH": "Photos Contradict Remarks",
+    "VISUAL_QC_MISMATCH": "Visual Q/C Mismatch",
 }
 
 
@@ -104,7 +108,9 @@ class AIModelRouter:
         self.openai_key, self.gemini_key = _load_env_keys()
         self._executor = ThreadPoolExecutor(max_workers=4)
 
-    def _call_openai(self, system_prompt: str, user_prompt: str) -> str:
+    def _call_openai(
+        self, system_prompt: str, user_prompt: str, images: list[str] | None = None
+    ) -> str:
         if not self.openai_key or self.openai_key == "YOUR_API_KEY":
             raise ValueError("OPENAI_API_KEY is not set or invalid.")
 
@@ -116,6 +122,11 @@ class AIModelRouter:
                 {"role": "user", "content": user_prompt},
             ],
         }
+        if images:
+            payload["messages"][1]["content"] = [
+                {"type": "text", "text": user_prompt},
+                *({"type": "image_url", "image_url": {"url": u, "detail": "low"}} for u in images),
+            ]
         # Reasoning and terra-tier models only allow the default temperature (1)
         if not any(k in self.primary_model.lower() for k in ("terra", "o1", "o3", "reasoning")):
             payload["temperature"] = 0.2
@@ -132,7 +143,20 @@ class AIModelRouter:
             data = json.loads(resp.read().decode("utf-8"))
             return data["choices"][0]["message"]["content"]
 
-    def _call_gemini(self, system_prompt: str, user_prompt: str) -> str:
+    def _fetch_image(self, url: str) -> dict[str, Any]:
+        """Download one photo as a Gemini inline_data part (Gemini cannot fetch arbitrary URLs)."""
+        if not url.lower().startswith(("http://", "https://")):
+            raise ValueError(f"unsupported photo URL: {url}")
+        with urllib.request.urlopen(url, timeout=self.timeout) as resp:
+            mime = resp.headers.get_content_type()
+            data = resp.read(MAX_IMAGE_BYTES + 1)
+        if not mime.startswith("image/") or len(data) > MAX_IMAGE_BYTES:
+            raise ValueError(f"not an image or over {MAX_IMAGE_BYTES} bytes: {url}")
+        return {"inline_data": {"mime_type": mime, "data": base64.b64encode(data).decode()}}
+
+    def _call_gemini(
+        self, system_prompt: str, user_prompt: str, images: list[str] | None = None
+    ) -> str:
         if not self.gemini_key or self.gemini_key == "YOUR_API_KEY":
             raise ValueError("GEMINI_API_KEY is not set or invalid.")
 
@@ -142,7 +166,9 @@ class AIModelRouter:
         )
         combined = f"{system_prompt}\n\nUser Request:\n{user_prompt}\n\nRespond with valid JSON only."
         payload = {
-            "contents": [{"parts": [{"text": combined}]}],
+            "contents": [
+                {"parts": [{"text": combined}, *(self._fetch_image(u) for u in images or [])]}
+            ],
             "generationConfig": {"temperature": 0.2},
         }
         req = urllib.request.Request(
@@ -155,7 +181,9 @@ class AIModelRouter:
             data = json.loads(resp.read().decode("utf-8"))
             return data["candidates"][0]["content"]["parts"][0]["text"]
 
-    def execute(self, system_prompt: str, user_prompt: str) -> tuple[str, str]:
+    def execute(
+        self, system_prompt: str, user_prompt: str, images: list[str] | None = None
+    ) -> tuple[str, str]:
         """Execute request with hot failover: Primary -> Fallback -> Heuristic string.
 
         Returns (response_text, model_identifier_used).
@@ -166,7 +194,7 @@ class AIModelRouter:
 
         # 1. Try Primary
         try:
-            raw = self._call_openai(system_prompt, user_prompt)
+            raw = self._call_openai(system_prompt, user_prompt, images)
             return raw, self.primary_model
         except urllib.error.HTTPError as e:
             detail = ""
@@ -189,7 +217,7 @@ class AIModelRouter:
 
         # 2. Try Fallback
         try:
-            raw = self._call_gemini(system_prompt, user_prompt)
+            raw = self._call_gemini(system_prompt, user_prompt, images)
             return raw, self.fallback_model
         except urllib.error.HTTPError as e:
             detail = ""

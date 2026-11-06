@@ -5,6 +5,7 @@ from web import views
 urlpatterns = [
     path("", views.new_run, name="new_run"),
     path("config/", views.config_view, name="config"),
+    path("how-it-works/", views.how_it_works, name="how_it_works"),
     path("runs/", views.history, name="history"),
     path("runs/<str:run_id>/", views.results, name="results"),
     path("runs/<str:run_id>/ai-overview/", views.ai_overview_view, name="ai_overview"),

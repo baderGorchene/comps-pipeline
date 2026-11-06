@@ -27,6 +27,8 @@ class FlagReason(StrEnum):
     LEASED_NEW_BUILD_REVIEW = "LEASED_NEW_BUILD_REVIEW"  # new build with lease/tenant indicators (C2 vs C1)
     INDIVIDUAL_OWNER_NEW_BUILD = "INDIVIDUAL_OWNER_NEW_BUILD"  # new build owned by private individual
     NEW_CONST_SUBDIVISION_DEFICIT = "NEW_CONST_SUBDIVISION_DEFICIT"  # in-sub pool lacks required new build comps
+    VISUAL_REMARKS_MISMATCH = "VISUAL_REMARKS_MISMATCH"  # photos contradict public_remarks claims
+    VISUAL_QC_MISMATCH = "VISUAL_QC_MISMATCH"  # photo Q/C differs materially from the subject
 
 
 class Severity(StrEnum):

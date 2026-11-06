@@ -135,6 +135,16 @@ class SelectionSettings(Strict):
         return v
 
 
+class VisionSettings(Strict):
+    enabled: bool = False
+    max_photos_per_property: int = Field(default=25, gt=0)
+    min_confidence: float = Field(default=0.6, ge=0, le=1)
+    rerank_min_delta: int = Field(default=2, gt=0)
+    photo_columns: list[str] = Field(
+        default_factory=lambda: ["Photo URLs", "PhotoURLs", "Photos", "Media URLs", "Image URLs"]
+    )
+
+
 class Settings(Strict):
     run: RunSettings
     ingest: IngestSettings
@@ -144,6 +154,7 @@ class Settings(Strict):
     matching: MatchingSettings
     ranking: RankingSettings
     selection: SelectionSettings
+    vision: VisionSettings = Field(default_factory=VisionSettings)
     severity: dict[FlagReason, Severity]  # must list every FlagReason
     # Loaded from the files next to settings.yaml, not from settings.yaml itself.
     column_mapping: dict[str, list[str]]

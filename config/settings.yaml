@@ -66,6 +66,16 @@ selection:
   bracket_attributes: [gla, lot, age, beds, baths]   # subject needs one comp above and one below
   equal_counts_as_bracketed: false   # true: a comp equal to the subject counts as both sides
 
+# Optional AI photo Q/C scoring of the shortlist + subject (runs between ranking and final
+# selection). Photo URLs come from an MLS column (see vision.photo_columns) or the subject's
+# extras.photo_urls. Needs OPENAI_API_KEY or GEMINI_API_KEY; without them it is skipped.
+vision:
+  enabled: false
+  max_photos_per_property: 25
+  min_confidence: 0.6            # below this, a score is recorded but never moves a comp
+  rerank_min_delta: 2            # C+Q steps from the subject before a comp is demoted
+  photo_columns: [Photo URLs, PhotoURLs, Photos, Media URLs, Image URLs]
+
 # Severity per flag reason: INFO | REVIEW | BLOCKING. Every reason must be listed.
 # Any BLOCKING flag makes the run exit with code 2.
 severity:
@@ -86,3 +96,5 @@ severity:
   LEASED_NEW_BUILD_REVIEW: REVIEW
   INDIVIDUAL_OWNER_NEW_BUILD: REVIEW
   NEW_CONST_SUBDIVISION_DEFICIT: REVIEW
+  VISUAL_REMARKS_MISMATCH: REVIEW
+  VISUAL_QC_MISMATCH: INFO

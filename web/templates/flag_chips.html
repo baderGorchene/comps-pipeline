@@ -1,0 +1,1 @@
+{% if flags %}<span class="comp-flags-list">{% for f in flags %}<span class="flag-chip flag-chip-{{ f.severity|lower }}" title="{{ f.severity|capfirst }}: {{ f.message }}{% if f.evidence %} ({{ f.evidence }}){% endif %}"><span class="flag-dot flag-dot-{{ f.severity|lower }}"></span><span class="flag-chip-label">{{ f.label }}</span></span>{% endfor %}</span>{% endif %}

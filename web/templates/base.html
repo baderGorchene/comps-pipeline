@@ -10,46 +10,25 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet"
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="{% static 'app.css' %}?v=3.6.3">
+  <link rel="stylesheet" href="{% static 'app.css' %}?v=4.0.0">
 </head>
 
 <body>
-  <div class="bg-grid" aria-hidden="true"></div>
+  {% with page=request.resolver_match.url_name %}
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="topbar-left">
-        <a class="brand" href="{% url 'new_run' %}">
-          <span class="brand-text">COMPS<span class="brand-thin">PIPELINE</span></span>
-        </a>
-        <span class="topbar-divider"></span>
-        <span class="topbar-status"><span class="status-dot"></span>Appraisal Engine</span>
-      </div>
-
+      <a class="brand" href="{% url 'new_run' %}">
+        <span class="brand-text">Comps<span class="brand-thin">Shortlist</span></span>
+      </a>
       <nav class="topnav" aria-label="Main navigation">
-        <a href="{% url 'new_run' %}" class="topnav-link"{% if request.resolver_match.url_name == 'new_run' %} aria-current="page"{% endif %}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 3 19 12 5 21 5 3" />
-          </svg>
-          <span>New Run</span>
-        </a>
-        <a href="{% url 'history' %}" class="topnav-link"{% if request.resolver_match.url_name == 'history' or request.resolver_match.url_name == 'results' %} aria-current="page"{% endif %}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 3v18h18" />
-            <path d="m19 9-5 5-4-4-3 3" />
-          </svg>
-          <span>Past Runs</span>
-        </a>
-        <a href="{% url 'config' %}" class="topnav-link"{% if request.resolver_match.url_name == 'config' %} aria-current="page"{% endif %}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3" />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-          <span>Configuration</span>
-        </a>
+        <a href="{% url 'new_run' %}" class="topnav-link"{% if page == 'new_run' %} aria-current="page"{% endif %}>New run</a>
+        <a href="{% url 'history' %}" class="topnav-link"{% if page == 'history' or page == 'results' %} aria-current="page"{% endif %}>Past runs</a>
+        <a href="{% url 'how_it_works' %}" class="topnav-link"{% if page == 'how_it_works' %} aria-current="page"{% endif %}>How it works</a>
+        <a href="{% url 'config' %}" class="topnav-link"{% if page == 'config' %} aria-current="page"{% endif %}>Settings</a>
       </nav>
     </div>
   </header>
+  {% endwith %}
   <main class="app-main">{% block content %}{% endblock %}</main>
 </body>
 

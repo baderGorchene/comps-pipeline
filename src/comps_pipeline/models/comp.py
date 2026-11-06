@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from comps_pipeline.ai.parsers import VisionScore
 from comps_pipeline.models.cell import Cell
 
 SQFT_PER_ACRE = 43560  # unit conversion, not a business rule
@@ -86,6 +87,7 @@ class Comp(BaseModel):
     deselection_reason: str | None = None  # UAD 3.6 Table 2 1-sentence deselection audit log
     ai_rejection_justification: str | None = None  # v3.6 AI rejection justification
     selection_status: str | None = None  # FINAL_COMP_1..FINAL_COMP_6 vs SHORTLIST_REJECTED
+    vision: VisionScore | None = None  # photo-based Q/C score (optional vision stage)
 
     def extra_str(self, *candidates: str) -> str:
         """Case-insensitive lookup across extras and remarks_signals; returns stripped str or ''."""

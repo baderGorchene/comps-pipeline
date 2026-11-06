@@ -1,68 +1,40 @@
 {% extends "base.html" %}
 {% block title %}Past Runs | Comps Shortlist{% endblock %}
 {% block content %}
-<div class="workspace-hero">
-  <div class="hero-left">
-    <div class="eyebrow-row">
-      <span class="badge-mono">RUN ARCHIVE</span>
-      <span class="eyebrow-sep">/</span>
-      <span class="eyebrow-text">IMMUTABLE AUDIT SNAPSHOTS</span>
+<div class="page">
+  <div class="page-head row-between">
+    <div>
+      <h1>Past runs</h1>
+      <p class="muted">Every run is saved, newest first. Click a property to open it.</p>
     </div>
-    <h1>Past runs</h1>
-    <p class="hero-sub">Every run is saved in <code>data/output</code> with its complete configuration snapshot, audit trail, and exported spreadsheets, newest first.</p>
+    <a href="{% url 'new_run' %}" class="primary">New run</a>
   </div>
-  <div class="hero-right">
-    <a href="{% url 'new_run' %}" class="primary btn-lg" style="text-decoration:none;">+ New Run</a>
-  </div>
-</div>
 
-<section class="studio-card">
   {% if runs %}
-  <div class="table-scroll">
+  <div class="table-scroll card">
     <table class="plain">
-      <thead>
-        <tr>
-          <th>Started</th>
-          <th>Subject Property</th>
-          <th>MLS Export</th>
-          <th class="num">CSV Rows</th>
-          <th class="num">Passed</th>
-          <th class="num">Picked</th>
-          <th>Rules Applied</th>
-          <th>Status</th>
-        </tr>
-      </thead>
+      <thead><tr><th>Property</th><th>Date</th><th class="num">Comps picked</th><th>Result</th></tr></thead>
       <tbody>
         {% for r in runs %}
         <tr>
-          <td class="mono">{{ r.started }}</td>
           <td>
-            <a href="{% url 'results' r.id %}" class="subject-link">{{ r.address }}</a>
-            {% if r.subdivision %}<small class="hint" style="margin:0;">{{ r.subdivision }}</small>{% endif %}
+            <a href="{% url 'results' r.id %}" class="subject-link"><strong>{{ r.address }}</strong></a>
+            <small>{{ r.subdivision }}{% if r.subdivision %} · {% endif %}{{ r.input }} · {{ r.input_rows }} rows{% if r.level %} · rules relaxed {{ r.level }}×{% endif %}</small>
           </td>
-          <td><code>{{ r.input }}</code></td>
-          <td class="num">{{ r.input_rows }}</td>
-          <td class="num">{{ r.after_hf }}</td>
+          <td class="small-text">{{ r.started }}</td>
           <td class="num"><strong>{{ r.final }}</strong></td>
-          <td>{% if r.level %}Relaxed {{ r.level }} step{{ r.level|pluralize }}{% else %}Baseline{% endif %}</td>
-          <td>
-            {% if r.blocked %}
-              <span class="sev sev-blocking">Not enough comps</span>
-            {% else %}
-              <span class="sev sev-ok">Complete</span>
-            {% endif %}
-          </td>
+          <td>{% if r.blocked %}<span class="sev sev-blocking">Not enough comps</span>{% else %}<span class="sev sev-ok">Done</span>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% else %}
-    <div class="empty-state">
-      <strong>No runs recorded yet.</strong>
-      <p class="hint">Start your first shortlist run to inspect results and export grids.</p>
-      <a href="{% url 'new_run' %}" class="primary" style="text-decoration:none;margin-top:.75rem;">Build a shortlist →</a>
-    </div>
+  <div class="empty-state card">
+    <strong>No runs yet.</strong>
+    <p class="muted">Build your first shortlist and it will show up here.</p>
+    <a href="{% url 'new_run' %}" class="primary">Build a shortlist →</a>
+  </div>
   {% endif %}
-</section>
+</div>
 {% endblock %}

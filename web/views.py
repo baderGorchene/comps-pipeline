@@ -83,6 +83,8 @@ FLAG_HUMAN_LABELS: dict[str, str] = {
     "LEASED_NEW_BUILD_REVIEW": "Leased New Build",
     "INDIVIDUAL_OWNER_NEW_BUILD": "Individual Owner",
     "NEW_CONST_SUBDIVISION_DEFICIT": "Subdivision Deficit",
+    "VISUAL_REMARKS_MISMATCH": "Photos Contradict Remarks",
+    "VISUAL_QC_MISMATCH": "Photo Condition Mismatch",
 }
 
 
@@ -236,6 +238,48 @@ def new_run(request: HttpRequest) -> HttpResponse:
             "subject": subject_form,
             "summary": _cfg_summary(cfg),
             "errors": errors,
+        },
+    )
+
+
+def how_it_works(request: HttpRequest) -> HttpResponse:
+    """Plain-language walkthrough of the pipeline, filled with the live settings."""
+    cfg = _config()
+    f = cfg["filters"]
+    bands = cfg["ranking"]["tolerance_bands"]
+    band_text = {
+        "subdivision": "same subdivision first, then close spellings, then others",
+        "distance": f"within {bands['distance_miles']} mi of each other counts as a tie",
+        "gla": f"within {bands['gla_pct']}% counts as a tie",
+        "age": f"within {bands['age_years']} years counts as a tie",
+        "lot": f"within {bands['lot_pct']}% counts as a tie",
+        "beds": f"within {bands['beds_count']} bedroom counts as a tie",
+        "baths": f"within {bands['baths_count']} bath counts as a tie",
+    }
+    guardrails = [
+        (f["exclude_distressed"], "Skip distressed sales (foreclosure, REO, short sale, fixer)"),
+        (f["enforce_55_plus"], "Keep 55+ communities and regular neighborhoods apart"),
+        (f["require_story_match"], "Same number of stories as the subject"),
+        (f["require_sub_type_match"], "Same kind of home (house vs. condo vs. manufactured)"),
+        (f["enforce_foundation_compatibility"], "Compatible foundation (slab vs. crawl space)"),
+        (f["require_school_district_match"], "Same school district"),
+        (f["require_water_sewer_match"], "Same water / sewer type (city sewer vs. septic)"),
+        (True, f"Active listings on the market more than {f['max_active_dom']} days are skipped"),
+    ]
+    return render(
+        request,
+        "how_it_works.html",
+        {
+            "summary": _cfg_summary(cfg),
+            "price_pct": f.get("price_bracket_pct"),
+            "ranking": [
+                {"name": HIERARCHY_LABELS.get(k, k), "tie": band_text.get(k, "")}
+                for k in cfg["ranking"]["hierarchy"]
+            ],
+            "relax_steps": [_describe_step(s) for s in cfg["escalation"]["steps"]],
+            "guardrails": [text for on, text in guardrails if on],
+            "vision": cfg.get("vision", {}),
+            "flag_labels": FLAG_HUMAN_LABELS,
         },
     )
 
@@ -459,6 +503,11 @@ def _comp_row(c: dict, picked: set[str], flags_by_mls: dict[str, list[dict[str, 
         "selection_status": c.get("selection_status")
         or ("PICKED" if mls in picked else "SHORTLIST_REJECTED"),
         "owner_type": c.get("owner_type") or "",
+        "visual_qc": (
+            f"{c['vision']['visual_condition_rating']} / {c['vision']['visual_quality_rating']}"
+            if c.get("vision")
+            else ""
+        ),
     }
 
 

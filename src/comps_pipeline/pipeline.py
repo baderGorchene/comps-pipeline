@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from comps_pipeline import __version__
 from comps_pipeline.ai.router import AIModelRouter
+from comps_pipeline.ai.vision import run_vision
 from comps_pipeline.config.schema import Settings
 from comps_pipeline.filters.escalation import filter_with_escalation
 from comps_pipeline.filters.geo import compute_distances
@@ -168,6 +169,12 @@ def run(
             shortlists[pool] = ranked.shortlist
             ranked_all.extend(ranked.ranked)
         shortlist = shortlists["sold"] + shortlists["listing"]
+    if settings.vision.enabled:
+        with timer.stage("vision"):
+            shortlists, _, vision_out = run_vision(shortlists, subject, settings)
+            flags.extend(vision_out.flags)
+            audit.extend(vision_out.audit)
+            shortlist = shortlists["sold"] + shortlists["listing"]
     with timer.stage("final_selection"):
         final = select_final(shortlists["sold"], shortlists["listing"], subject, settings)
         flags.extend(final.flags)

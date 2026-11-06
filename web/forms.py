@@ -120,13 +120,13 @@ def _int(label: str, lo: int, hi: int, **kw: Any) -> forms.IntegerField:
 
 class InputsForm(forms.Form):
     csv_source = forms.ChoiceField(
-        choices=[("upload", "Upload an MLS export"), ("sample", "Use the synthetic sample")],
+        choices=[("upload", "Upload my file"), ("sample", "Use the sample file")],
         widget=forms.RadioSelect,
         initial="upload",
     )
     csv_file = forms.FileField(label="MLS export (.csv)", required=False)
     subject_source = forms.ChoiceField(
-        choices=[("form", "Type it in"), ("yaml", "Upload subject.yaml")],
+        choices=[("form", "Type it in"), ("yaml", "Upload a subject file")],
         widget=forms.RadioSelect,
         initial="form",
     )
