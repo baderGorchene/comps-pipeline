@@ -145,6 +145,22 @@ class VisionSettings(Strict):
     )
 
 
+class SecondRoundSettings(Strict):
+    """ "Find more comps": drop unusable shortlist comps, refill from near misses, pick again."""
+
+    auto: bool = True  # run it automatically when picks come up short (else: button in the UI)
+    extra_relax_steps: int = Field(default=1, ge=0)  # how far past round 1's level to look
+    fill_to_pick_count: bool = True  # still short? top up with flagged out-of-rules comps
+    never_relax: list[str] = Field(default_factory=lambda: ["sub_type_and_stories"])
+    remove_if_flagged: list[FlagReason] = Field(
+        default_factory=lambda: [
+            FlagReason.VISUAL_QC_MISMATCH,
+            FlagReason.VISUAL_REMARKS_MISMATCH,
+            FlagReason.NON_CONFORMING_CONVERSION,
+        ]
+    )
+
+
 class Settings(Strict):
     run: RunSettings
     ingest: IngestSettings
@@ -155,6 +171,7 @@ class Settings(Strict):
     ranking: RankingSettings
     selection: SelectionSettings
     vision: VisionSettings = Field(default_factory=VisionSettings)
+    second_round: SecondRoundSettings = Field(default_factory=SecondRoundSettings)
     severity: dict[FlagReason, Severity]  # must list every FlagReason
     # Loaded from the files next to settings.yaml, not from settings.yaml itself.
     column_mapping: dict[str, list[str]]

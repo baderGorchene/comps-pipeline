@@ -2039,3 +2039,10 @@ table.plain td { vertical-align: top; }
   .step-card, .explain { flex-direction: column; }
   .page-head h1 { font-size: 1.45rem; }
 }
+
+/* Find more comps (second round) */
+.find-more { display: flex; gap: 1rem; align-items: center; justify-content: space-between; margin: 0 0 1rem; }
+.find-more p { margin: .25rem 0 0; }
+.find-more button { white-space: nowrap; flex-shrink: 0; }
+.tag-new { background: #e7f5ec; color: #17663a; }
+.tag-warn { background: #fff4e0; color: #8a5300; }

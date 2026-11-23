@@ -15,7 +15,18 @@
     </div>
   </div>
 
-  {% if blocking %}
+  {% if outside_rules %}
+  <div class="alert alert-review" role="status">
+    <strong>{{ outside_rules|length }} of the {{ final_count }} picks are outside your rules.</strong>
+    <p>Not enough properties passed your rules, so the closest ones that still match on
+      {{ second_round.never_relax|join:", "|default:"the rules that never loosen" }} were used. They are
+      marked “Outside Rules: Replace”; swap them for better comps if you can.</p>
+    <details class="tiny"><summary>Why each one breaks the rules</summary>
+      <ul class="small-text">{% for f in outside_rules %}<li><strong>MLS {{ f.mls_number }}</strong>: {{ f.message }}</li>{% endfor %}</ul>
+    </details>
+  </div>
+  {% endif %}
+  {% if blocking and final_count < wanted %}
   <div class="alert alert-block" role="alert">
     <strong>Not enough comps.</strong>
     {% for f in blocking %}<p>{{ f.message }}</p>{% endfor %}
@@ -30,6 +41,55 @@
   <div class="alert alert-ok" role="status">
     <strong>Bracketed on every attribute.</strong>
     <p>{{ final_count }} comps picked{% if review_count %} · {{ review_count }} warning{{ review_count|pluralize }} to look at{% endif %}.</p>
+  </div>
+  {% endif %}
+
+  {% if can_find_more %}
+  <form method="post" action="{% url 'find_more' run_id %}" class="card find-more"
+        onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='Searching…'">
+    {% csrf_token %}
+    <div>
+      <strong>Not enough usable comps?</strong>
+      <p class="muted small">Keeps the good comps, drops the ones flagged as not comparable, and searches
+        only properties that were never shortlisted, with the rules loosened one more step.</p>
+    </div>
+    <button type="submit" class="primary">Find more comps</button>
+  </form>
+  {% endif %}
+  {% if second_round %}
+  <div class="alert {% if second_round.added %}alert-ok{% else %}alert-review{% endif %}" role="status">
+    <strong>Second round{% if not second_round.added and not second_round.filled %} found no other comparable properties{% endif %}:</strong>
+    kept {{ second_round.kept|length }} from the first round,
+    removed {{ second_round.removed|length }} not comparable,
+    added {{ second_round.added|length }} <span class="tag tag-new">New</span>{% if second_round.filled %}, and filled {{ second_round.filled|length }} spot{{ second_round.filled|length|pluralize }} outside the rules{% endif %}.
+    <p class="muted small">Removed comps are listed in the Files tab with the reason.</p>
+    {% if second_round.no_looser_rules %}
+    <p class="small"><strong>The first round already used every loosening step
+      ({{ second_round.level_round_1 }} of {{ second_round.steps_available }}),</strong> so there were no looser
+      rules to search with. Add a step or widen the rule below in <a href="{% url 'config' %}">Settings</a>.</p>
+    {% endif %}
+    <details class="tiny"><summary>Search details</summary>
+      <ul class="small-text">
+        <li>Rules used: step {{ second_round.level_used }} of {{ second_round.steps_available }} (first round: step {{ second_round.level_round_1 }})</li>
+        {% if second_round.reached_filters is not None %}
+        <li>{{ second_round.reached_filters }} properties reached the rules, {{ second_round.never_shortlisted }} never shortlisted</li>
+        <li>{{ second_round.passed_rules }} pass the rules, {{ second_round.candidates_checked }} of them new</li>
+        {% endif %}
+        <li>Kept: {{ second_round.kept|join:", "|default:"none" }}</li>
+        <li>Removed: {{ second_round.removed|join:", "|default:"none" }}</li>
+        <li>Added: {{ second_round.added|join:", "|default:"none" }}</li>
+      </ul>
+      {% if second_round.blocked_by %}
+      <table class="plain small-text">
+        <thead><tr><th>Still blocked by</th><th class="num">Properties</th><th class="num">Only reason</th></tr></thead>
+        <tbody>{% for rule, n in second_round.blocked_by.items %}
+          <tr><td>{{ rule }}</td><td class="num">{{ n }}</td><td class="num">{% for r, m in second_round.only_miss.items %}{% if r == rule %}{{ m }}{% endif %}{% endfor %}</td></tr>
+        {% endfor %}</tbody>
+      </table>
+      <p class="muted small">“Only reason” = properties that would get in if just that rule were widened.
+        The full log is <code>run.log</code> in the Files tab.</p>
+      {% endif %}
+    </details>
   </div>
   {% endif %}
 
@@ -69,6 +129,7 @@
             <td>
               <strong>{{ r.address }}</strong>
               <small>MLS {{ r.mls }} · {{ r.status }}{% if r.same_subdivision %} · same subdivision{% endif %}</small>
+              {% if r.round2 and not r.outside_rules %}<span class="tag tag-new">New</span>{% endif %}
               {% include "flag_chips.html" with flags=r.flags %}
             </td>
             <td class="num">{{ r.price }}</td>
@@ -176,7 +237,7 @@
           {% for r in analyzed_not_used %}
           <tr>
             <td class="num">{{ r.rank }}<small>{{ r.pool }}</small></td>
-            <td><strong>{{ r.address }}</strong><small>MLS {{ r.mls }} · {{ r.status }}</small>{% include "flag_chips.html" with flags=r.flags %}</td>
+            <td><strong>{{ r.address }}</strong>{% if r.round2 and not r.outside_rules %} <span class="tag tag-new">New</span>{% endif %}<small>MLS {{ r.mls }} · {{ r.status }}</small>{% include "flag_chips.html" with flags=r.flags %}</td>
             <td class="num">{{ r.price }}</td>
             <td class="num">{{ r.gla }}</td>
             <td class="num">{{ r.miles }}</td>

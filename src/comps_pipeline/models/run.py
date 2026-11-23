@@ -23,6 +23,8 @@ class RunManifest(BaseModel):
     escalation_attempts: list[dict[str, Any]] = Field(default_factory=list)
     ai_model_used: str = "gpt-6.1-terra"
     ai_rejection_count: int = 0
+    more_comps_needed: bool = False  # too few / unusable picks: offer a second round
+    second_round: dict[str, Any] | None = None  # kept / removed / added when it ran
 
 
 @dataclass

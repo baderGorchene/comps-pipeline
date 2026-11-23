@@ -174,7 +174,11 @@ def test_ai_overview_endpoint_and_results_display(client):
     assert "overview" in data
     assert "executive_summary" in data["overview"]
     assert "valuation_bracket_conclusion" in data["overview"]
-    assert data["overview"]["model_used"] in ("gpt-6.1-terra", "gemini-flash-latest", "heuristic_fallback")
+    assert data["overview"]["model_used"] in (
+        "gpt-6.1-terra",
+        "gemini-flash-latest",
+        "heuristic_fallback",
+    )
 
     # Second call should return cached overview
     resp2 = client.get(f"/runs/{run_id}/ai-overview/")
@@ -212,4 +216,18 @@ def test_all_templates_compile_cleanly():
         assert loaded is not None
 
 
-
+def test_find_more_comps_button_runs_second_round(client):
+    path = django_settings.CONFIG_FILE
+    cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
+    cfg["second_round"]["remove_if_flagged"] = list(cfg["severity"])  # any flagged pick = unusable
+    cfg["second_round"]["auto"] = False  # button mode
+    path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    first = _post(client)
+    page = client.get(first.url).content.decode()
+    assert "Find more comps" in page
+    run_id = first.url.rstrip("/").split("/")[-1]
+    second = client.post(f"/runs/{run_id}/find-more/")
+    assert second.status_code == 302 and second.url != first.url
+    page = client.get(second.url).content.decode()
+    assert "Second round:" in page and "tag-new" in page
+    assert "Find more comps</button>" not in page  # one extra round only

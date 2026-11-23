@@ -56,6 +56,7 @@ HUMAN_FLAG_NAMES: dict[str, str] = {
     "NEW_CONST_SUBDIVISION_DEFICIT": "Subdivision Allocation Deficit",
     "VISUAL_REMARKS_MISMATCH": "Photos Contradict Remarks",
     "VISUAL_QC_MISMATCH": "Visual Q/C Mismatch",
+    "OUTSIDE_RULES_PICK": "Outside Rules Pick",
 }
 
 
@@ -91,6 +92,11 @@ def _clean_json_text(text: str) -> str:
     if match:
         return match.group(1).strip()
     return text
+
+
+def _num(value: Any, spec: str) -> str:
+    """Format a number, or "unknown" when the MLS row lacks it."""
+    return "unknown" if value is None else format(value, spec)
 
 
 class AIModelRouter:
@@ -331,9 +337,9 @@ class AIModelRouter:
 
         user_prompt = (
             f"Candidate Property (MLS #{candidate.mls_number}):\n"
-            f"- Distance: {c_dist:.2f} mi from subject\n"
-            f"- Living Area: {c_gla} sq ft ({gla_diff_pct:+.1f}% vs subject {subj_gla} sq ft)\n"
-            f"- Price: ${c_price:,} (Pool: {candidate.pool})\n"
+            f"- Distance: {_num(c_dist, '.2f')} mi from subject\n"
+            f"- Living Area: {c_gla} sq ft ({_num(gla_diff_pct, '+.1f')}% vs subject {subj_gla} sq ft)\n"
+            f"- Price: ${_num(c_price, ',')} (Pool: {candidate.pool})\n"
             f"- Subdivision Tier: {tier} (Raw: {candidate.subdivision_raw.value})\n"
             f"- Lease Status: {'Tenant Occupied / Leased (C2)' if is_leased else 'Owner/Builder Occupied'}\n\n"
             f"Subject Property:\n"
@@ -344,7 +350,8 @@ class AIModelRouter:
         for i, p in enumerate(final_picks, 1):
             user_prompt += (
                 f"  Comp {i} (MLS #{p.mls_number}): {p.living_area.value} sq ft, "
-                f"{p.distance_miles.value:.2f} mi, ${p.close_price.value or p.list_price.value:,}\n"
+                f"{_num(p.distance_miles.value, '.2f')} mi, "
+                f"${_num(p.close_price.value or p.list_price.value, ',')}\n"
             )
 
         raw, model = self.execute(REJECTION_JUSTIFICATION_SYSTEM, user_prompt)

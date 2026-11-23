@@ -12,7 +12,7 @@
       {% for r in rows %}
       <tr class="{% if r.picked %}picked{% endif %}">
         <td class="num">{{ r.rank }}</td>
-        <td><strong>{{ r.mls }}</strong>{% if r.picked %} <span class="tag">Picked</span>{% endif %}<small>{{ r.status }}</small>{% include "flag_chips.html" with flags=r.flags %}</td>
+        <td><strong>{{ r.mls }}</strong>{% if r.picked %} <span class="tag">Picked</span>{% endif %}{% if r.round2 and not r.outside_rules %} <span class="tag tag-new">New</span>{% endif %}<small>{{ r.status }}</small>{% include "flag_chips.html" with flags=r.flags %}</td>
         <td class="num">{{ r.price }}</td>
         <td>{{ r.date }}</td>
         <td class="num">{{ r.gla }}</td>

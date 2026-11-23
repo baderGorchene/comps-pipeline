@@ -76,6 +76,18 @@ vision:
   rerank_min_delta: 2            # C+Q steps from the subject before a comp is demoted
   photo_columns: [Photo URLs, PhotoURLs, Photos, Media URLs, Image URLs]
 
+# "Find more comps": when the final pick comes up short (or a pick is flagged below),
+# keep the good shortlist comps, drop the flagged ones, and refill only from properties
+# never shortlisted that pass the rules loosened `extra_relax_steps` more steps.
+second_round:
+  auto: true                     # false = offer a "Find more comps" button on the results page instead
+  extra_relax_steps: 1
+  # Still short of the final pick count? Fill with the closest properties that break only
+  # relaxable rules, each flagged OUTSIDE_RULES_PICK. Rules listed in never_relax always hold.
+  fill_to_pick_count: true
+  never_relax: [sub_type_and_stories]
+  remove_if_flagged: [VISUAL_QC_MISMATCH, VISUAL_REMARKS_MISMATCH, NON_CONFORMING_CONVERSION]
+
 # Severity per flag reason: INFO | REVIEW | BLOCKING. Every reason must be listed.
 # Any BLOCKING flag makes the run exit with code 2.
 severity:
@@ -98,3 +110,4 @@ severity:
   NEW_CONST_SUBDIVISION_DEFICIT: REVIEW
   VISUAL_REMARKS_MISMATCH: REVIEW
   VISUAL_QC_MISMATCH: INFO
+  OUTSIDE_RULES_PICK: REVIEW

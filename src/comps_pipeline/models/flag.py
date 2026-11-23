@@ -29,6 +29,7 @@ class FlagReason(StrEnum):
     NEW_CONST_SUBDIVISION_DEFICIT = "NEW_CONST_SUBDIVISION_DEFICIT"  # in-sub pool lacks required new build comps
     VISUAL_REMARKS_MISMATCH = "VISUAL_REMARKS_MISMATCH"  # photos contradict public_remarks claims
     VISUAL_QC_MISMATCH = "VISUAL_QC_MISMATCH"  # photo Q/C differs materially from the subject
+    OUTSIDE_RULES_PICK = "OUTSIDE_RULES_PICK"  # picked only to reach the pick count; replace it
 
 
 class Severity(StrEnum):

@@ -132,6 +132,24 @@
         Picks of 2,100 and 2,300 do not — every comp is bigger.</p>
       <p>If something isn't bracketed, the tool swaps in the next-best shortlisted comp that fixes it. If
         none can, you get a warning.</p>
+      <p><strong>Still not enough?</strong> If fewer than {{ summary.sold_count }} sold +
+        {{ summary.listing_count }} active are picked, or a pick turns out not comparable, the tool
+        {% if second_round.auto %}automatically runs a second round{% else %}offers a <strong>Find more comps</strong> button{% endif %}. It:</p>
+      <ol class="small-text">
+        <li>Keeps every shortlisted comp that is still fine, exactly as it was.</li>
+        <li>Removes comps flagged as not comparable ({{ second_round.remove_if_flagged|join:", "|default:"none set" }}).</li>
+        <li>Looks only at properties that were never shortlisted and pass the rules loosened
+          {{ second_round.extra_relax_steps|default:1 }} more step. Blocked rows (duplicates, wrong status,
+          missing data) never come back.</li>
+        <li>Fills the empty spots with the best of those, then picks again. New comps are marked
+          <span class="tag tag-new">New</span>.</li>
+        {% if second_round.fill_to_pick_count %}
+        <li>If there still aren't enough, it uses the closest properties anyway so you always get
+          {{ summary.sold_count|add:summary.listing_count }} comps. They are marked
+          “Outside Rules: Replace” with the rules they break. These rules are never
+          broken: {{ second_round.never_relax|join:", " }}.</li>
+        {% endif %}
+      </ol>
       <details class="more"><summary>New construction is different</summary>
         <p>For a brand-new subject (C1), picks are split: 2 sold + 1 active inside the subject's
           subdivision, 1 sold + 1 active from competing subdivisions, plus 1 more sold. New builds with

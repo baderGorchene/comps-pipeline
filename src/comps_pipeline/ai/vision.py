@@ -110,6 +110,7 @@ def run_vision(
             urls_for(c),
         )
         for c in comps
+        if c.vision is None  # already scored in an earlier round: reuse, don't pay twice
     ]
     # ponytail: thread pool of 4 shared with the router; raise max_workers if runs get slow
     results = dict(
@@ -120,6 +121,7 @@ def run_vision(
         )
     )
 
+    results.update({c.mls_number: c.vision for c in comps if c.vision is not None})
     subject_score = results.pop(SUBJECT_ID)
     # Target: the subject's own photos when confident, else its declared UAD ratings.
     use_photos = subject_score is not None and subject_score.confidence_score >= cfg.min_confidence

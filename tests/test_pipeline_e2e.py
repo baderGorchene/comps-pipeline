@@ -91,3 +91,60 @@ def test_below_minimum_after_escalation_exits_2(settings):
     (flag,) = [f for f in result.flags if f.reason is FlagReason.SHORTLIST_BELOW_MINIMUM]
     assert "max_distance" in flag.message
     assert result.exit_code == 2
+
+
+def test_second_round_keeps_good_drops_flagged_and_refills(settings):
+    first = pipeline.run(CSV, SUBJECT, settings)
+    assert first.manifest.second_round is None
+    picked = {c.mls_number for c in first.final.picks}
+    bad = next(
+        f for f in first.flags if f.mls_number in picked
+    )  # pretend this flag = not comparable
+    cfg = settings.second_round.model_copy(update={"remove_if_flagged": [bad.reason]})
+    s = settings.model_copy(update={"second_round": cfg})
+
+    r = pipeline.run(CSV, SUBJECT, s, find_more=True)
+    info = r.manifest.second_round
+    removed, first_sl = set(info["removed"]), {c.mls_number for c in first.shortlist}
+    shortlisted = {c.mls_number for c in r.shortlist}
+    assert bad.mls_number in removed and not removed & shortlisted
+    assert set(info["kept"]) == first_sl - removed <= shortlisted  # good comps never re-judged
+    added = {c.mls_number for c in r.shortlist if c.found_in_round == 2}
+    assert added == set(info["added"]) and added and not added & first_sl
+    assert not removed & {c.mls_number for c in r.final.picks}
+    assert len(r.final.picks) == 6
+    excluded = _rows(r.out_dir / "excluded.csv")
+    assert len(excluded) + len(r.shortlist) == 300  # still every row accounted for
+    assert any("SECOND_ROUND_REMOVED" in e["reasons"] for e in excluded)
+
+
+def test_second_round_explains_itself(settings):
+    r = pipeline.run(CSV, SUBJECT, settings, find_more=True)
+    info = r.manifest.second_round
+    if info is None:  # sample run needed nothing; force a shortfall via an impossible count
+        s = settings.model_copy(
+            update={"selection": settings.selection.model_copy(update={"sold_count": 99})}
+        )
+        info = pipeline.run(CSV, SUBJECT, s, find_more=True).manifest.second_round
+    assert {
+        "level_round_1",
+        "steps_available",
+        "no_looser_rules",
+        "blocked_by",
+        "only_miss",
+    } <= set(info)
+    assert info["passed_rules"] >= info["candidates_checked"]
+
+
+def test_fill_keeps_never_relax_rules(settings):
+    # 200 sold wanted: the sample can't satisfy it, so fillers appear; none may break never_relax.
+    s = settings.model_copy(
+        update={"selection": settings.selection.model_copy(update={"sold_count": 200})}
+    )
+    r = pipeline.run(CSV, SUBJECT, s)
+    filled = [f for f in r.flags if f.reason == FlagReason.OUTSIDE_RULES_PICK]
+    assert filled and all("sub_type_and_stories" not in f.message for f in filled)
+    sold = [c for c in r.final.picks if c.pool == "sold"]
+    filled_mls = {f.mls_number for f in filled}
+    first_filler = next(i for i, c in enumerate(sold) if c.mls_number in filled_mls)
+    assert all(c.mls_number in filled_mls for c in sold[first_filler:])  # fillers rank last

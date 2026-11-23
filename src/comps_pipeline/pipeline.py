@@ -27,6 +27,7 @@ from comps_pipeline.models import (
     Decision,
     Excluded,
     Flag,
+    FlagReason,
     RunManifest,
     Severity,
     StageOutput,
@@ -35,6 +36,8 @@ from comps_pipeline.models import (
 from comps_pipeline.outputs.writers import write_manifest, write_outputs
 from comps_pipeline.ranking.ranker import rank, subject_gaps
 from comps_pipeline.selection.final import FinalSelection, select_final
+from comps_pipeline.selection.second_round import find_more as second_round
+from comps_pipeline.selection.second_round import needs_more
 
 log = logging.getLogger(__name__)
 
@@ -117,6 +120,7 @@ def run(
     input_csv: Path,
     subject_file: Path,
     settings: Settings,
+    find_more: bool | None = None,  # None = settings.second_round.auto
 ) -> RunResult:
     input_csv, subject_file = Path(input_csv), Path(subject_file)
     started_at = dt.datetime.now().isoformat(timespec="seconds")
@@ -149,6 +153,7 @@ def run(
     with timer.stage("subdivision"):
         comps = absorb(match_all(comps, subject, settings))
     with timer.stage("hard_filters"):
+        filter_input = comps
         escalation = filter_with_escalation(comps, subject, settings)
         comps = absorb(escalation.out)
     with timer.stage("rank"):
@@ -169,16 +174,44 @@ def run(
             shortlists[pool] = ranked.shortlist
             ranked_all.extend(ranked.ranked)
         shortlist = shortlists["sold"] + shortlists["listing"]
-    if settings.vision.enabled:
-        with timer.stage("vision"):
-            shortlists, _, vision_out = run_vision(shortlists, subject, settings)
-            flags.extend(vision_out.flags)
-            audit.extend(vision_out.audit)
-            shortlist = shortlists["sold"] + shortlists["listing"]
-    with timer.stage("final_selection"):
-        final = select_final(shortlists["sold"], shortlists["listing"], subject, settings)
-        flags.extend(final.flags)
-        audit.extend(final.audit)
+
+    def pick(shortlists: dict[str, list[Comp]]) -> tuple[dict[str, list[Comp]], FinalSelection]:
+        if settings.vision.enabled:
+            with timer.stage("vision"):
+                shortlists, _, vision_out = run_vision(shortlists, subject, settings)
+                flags.extend(vision_out.flags)
+                audit.extend(vision_out.audit)
+        with timer.stage("final_selection"):
+            final = select_final(shortlists["sold"], shortlists["listing"], subject, settings)
+            flags.extend(final.flags)
+            audit.extend(final.audit)
+        return shortlists, final
+
+    before_pick = len(flags)
+    shortlists, final = pick(shortlists)
+    more_needed = needs_more(final.picks, flags, settings)
+    round2: dict | None = None
+    if more_needed and (settings.second_round.auto if find_more is None else find_more):
+        with timer.stage("second_round"):
+            round1_flags = flags[before_pick:]
+            shortlists, more_out, round2 = second_round(
+                filter_input, shortlists, flags, subject, settings, escalation.level
+            )
+            removed = set(round2["removed"])
+            del flags[
+                before_pick:
+            ]  # round 1's pick is superseded; keep only why comps were removed
+            flags.extend(f for f in round1_flags if f.mls_number in removed)
+            flags.extend(more_out.flags)
+            audit.extend(more_out.audit)
+            moved = {c.source_row for pool in shortlists.values() for c in pool}
+            excluded[:] = [e for e in excluded if e.source_row not in moved] + more_out.excluded
+            if len(shortlists["sold"]) >= run_cfg.min_shortlist_size:
+                flags[:] = [f for f in flags if f.reason != FlagReason.SHORTLIST_BELOW_MINIMUM]
+        shortlists, final = pick(shortlists)
+        more_needed = needs_more(final.picks, flags, settings)
+    shortlist = shortlists["sold"] + shortlists["listing"]
+    with timer.stage("annotate"):
         # Annotate shortlist with selection_rationale / deselection_reason from final_selection
         by_pick = {c.mls_number: c for c in final.picks}
         by_unused = {c.mls_number: c for c in final.analyzed_not_used}
@@ -259,6 +292,8 @@ def run(
         escalation_attempts=escalation.attempts,
         ai_model_used=ai_model_used,
         ai_rejection_count=len(final.analyzed_not_used),
+        more_comps_needed=more_needed,
+        second_round=round2,
     )
     paths["run_manifest.json"] = write_manifest(out_dir, manifest)
     log.info("run %s written to %s", run_id, out_dir)

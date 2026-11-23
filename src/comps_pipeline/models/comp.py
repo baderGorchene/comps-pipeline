@@ -88,6 +88,7 @@ class Comp(BaseModel):
     ai_rejection_justification: str | None = None  # v3.6 AI rejection justification
     selection_status: str | None = None  # FINAL_COMP_1..FINAL_COMP_6 vs SHORTLIST_REJECTED
     vision: VisionScore | None = None  # photo-based Q/C score (optional vision stage)
+    found_in_round: int = 1  # 2 = added by the "find more comps" second round
 
     def extra_str(self, *candidates: str) -> str:
         """Case-insensitive lookup across extras and remarks_signals; returns stripped str or ''."""

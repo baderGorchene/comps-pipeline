@@ -8,6 +8,7 @@ urlpatterns = [
     path("how-it-works/", views.how_it_works, name="how_it_works"),
     path("runs/", views.history, name="history"),
     path("runs/<str:run_id>/", views.results, name="results"),
+    path("runs/<str:run_id>/find-more/", views.find_more, name="find_more"),
     path("runs/<str:run_id>/ai-overview/", views.ai_overview_view, name="ai_overview"),
     path("runs/<str:run_id>/files/<str:name>", views.download, name="download"),
 ]

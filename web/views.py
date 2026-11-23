@@ -85,6 +85,7 @@ FLAG_HUMAN_LABELS: dict[str, str] = {
     "NEW_CONST_SUBDIVISION_DEFICIT": "Subdivision Deficit",
     "VISUAL_REMARKS_MISMATCH": "Photos Contradict Remarks",
     "VISUAL_QC_MISMATCH": "Photo Condition Mismatch",
+    "OUTSIDE_RULES_PICK": "Outside Rules: Replace",
 }
 
 
@@ -152,18 +153,40 @@ class _LogCapture(logging.Handler):
         self.lines.append(self.format(record))
 
 
-def _run_pipeline(csv_path: Path, subject_path: Path, settings) -> pipeline.RunResult:
+def _run_pipeline(
+    csv_path: Path, subject_path: Path, settings, find_more: bool | None = None
+) -> pipeline.RunResult:
     capture, logger = _LogCapture(), logging.getLogger("comps_pipeline")
     previous = logger.level
     logger.addHandler(capture)
     logger.setLevel(logging.INFO)
     try:
-        result = pipeline.run(csv_path, subject_path, settings)
+        result = pipeline.run(csv_path, subject_path, settings, find_more=find_more)
     finally:
         logger.removeHandler(capture)
         logger.setLevel(previous)
     (result.out_dir / "run.log").write_text("\n".join(capture.lines) + "\n", encoding="utf-8")
+    if Path(csv_path) != result.out_dir / "input.csv":
+        # ponytail: one copy of the export per run, so "Find more comps" can rerun it later
+        shutil.copyfile(csv_path, result.out_dir / "input.csv")
     return result
+
+
+def find_more(request: HttpRequest, run_id: str) -> HttpResponse:
+    """Second round on a finished run: same file, subject and settings it used."""
+    if request.method != "POST":
+        return redirect("results", run_id=run_id)
+    run_dir = _run_dir(run_id)
+    csv_path = run_dir / "input.csv"
+    if not csv_path.is_file():
+        raise Http404("This run's MLS file was not kept; start a new run instead")
+    manifest = _json(run_dir / "run_manifest.json")
+    snapshot = manifest["config_snapshot"]
+    # runs saved before a new flag reason existed: take its severity from today's settings
+    snapshot["severity"] = {**_config()["severity"], **snapshot["severity"]}
+    settings = settings_from_dict(snapshot, f"run {run_id}")
+    result = _run_pipeline(csv_path, run_dir / "subject.json", settings, find_more=True)
+    return redirect("results", run_id=result.run_id)
 
 
 def _cfg_summary(cfg: dict[str, Any]) -> dict[str, Any]:
@@ -279,6 +302,7 @@ def how_it_works(request: HttpRequest) -> HttpResponse:
             "relax_steps": [_describe_step(s) for s in cfg["escalation"]["steps"]],
             "guardrails": [text for on, text in guardrails if on],
             "vision": cfg.get("vision", {}),
+            "second_round": cfg.get("second_round", {}),
         },
     )
 
@@ -496,6 +520,8 @@ def _comp_row(c: dict, picked: set[str], flags_by_mls: dict[str, list[dict[str, 
         "flags": comp_flags,
         "flags_count": len(comp_flags),
         "picked": mls in picked,
+        "round2": c.get("found_in_round") == 2,
+        "outside_rules": any(f["reason"] == "OUTSIDE_RULES_PICK" for f in comp_flags),
         "selection_rationale": c.get("selection_rationale") or "",
         "deselection_reason": c.get("deselection_reason") or "",
         "ai_rejection_justification": c.get("ai_rejection_justification") or "",
@@ -567,12 +593,8 @@ def _build_pipeline_trace(
     clean_dropped = max(0, input_rows - after_clean)
 
     # 3. Distance & Subdivision insights
-    no_coords = sum(
-        1 for f in flags if f.get("reason") == "NO_COORDINATES"
-    )
-    fuzzy_subs = sum(
-        1 for f in flags if f.get("reason") == "SUBDIVISION_UNCERTAIN"
-    )
+    no_coords = sum(1 for f in flags if f.get("reason") == "NO_COORDINATES")
+    fuzzy_subs = sum(1 for f in flags if f.get("reason") == "SUBDIVISION_UNCERTAIN")
     has_subject_gps = subject.get("latitude") is not None and subject.get("longitude") is not None
     same_sub_shortlist = sum(1 for c in shortlist if _v(c, "subdivision_tier") in (0, 1))
 
@@ -793,6 +815,14 @@ def results(request: HttpRequest, run_id: str) -> HttpResponse:
         "counts": manifest["row_counts"],
         "input_name": Path(manifest["input_file"]).name,
         "downloads": [n for n in DOWNLOADS if (run_dir / n).is_file()],
+        "second_round": manifest.get("second_round"),
+        "outside_rules": [
+            f for f in enriched_flags if f["reason"] == "OUTSIDE_RULES_PICK" and f["mls_number"] in picked
+        ],
+        "wanted": cfg["selection"]["sold_count"] + cfg["selection"]["listing_count"],
+        "can_find_more": manifest.get("more_comps_needed")
+        and not manifest.get("second_round")
+        and (run_dir / "input.csv").is_file(),
     }
     return render(request, "results.html", context)
 

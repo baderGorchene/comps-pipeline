@@ -476,6 +476,11 @@ def test_mcallen_dataset_runs_end_to_end(tmp_path, settings):
     subj_path.write_text(subj.model_dump_json(), encoding="utf-8")
     result = pipeline.run(mcallen_csv, subj_path, settings)
     assert result.manifest.row_counts["input_rows"] == 1055
-    assert len(result.final.picks) >= 1
-    assert result.final.picks[0].mls_number == "502912"
+    # Only 1 listing passes the rules; the auto second round fills the 5 sold spots with the
+    # closest same-type / same-stories homes, each flagged to be replaced.
+    picks = result.final.picks
+    assert len(picks) == 6 and "502912" in {c.mls_number for c in picks}
+    filled = {f.mls_number for f in result.flags if f.reason.value == "OUTSIDE_RULES_PICK"}
+    assert filled == set(result.manifest.second_round["filled"]) and len(filled) == 5
+    assert "502912" not in filled
 
