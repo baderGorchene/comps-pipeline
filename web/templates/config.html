@@ -49,6 +49,8 @@
           {% include "field.html" with field=form.lot_bracket_pct %}
           {% include "field.html" with field=form.max_distance_miles %}
           {% include "field.html" with field=form.sale_date_max_months %}
+          {% include "field.html" with field=form.price_bracket_pct %}
+          {% include "field.html" with field=form.max_age_diff_years %}
           {% include "field.html" with field=form.require_subdivision_match wide=True %}
         </div>
         <details class="more"><summary>More options</summary>
@@ -83,7 +85,11 @@
             <option value="max_distance_miles">Max distance (miles)</option>
             <option value="gla_bracket_pct">Living area (± %)</option>
             <option value="lot_bracket_pct">Lot size (± %)</option>
+            <option value="price_bracket_pct">Price (± %)</option>
+            <option value="max_age_diff_years">Max age difference (years)</option>
             <option value="sale_date_max_months">Sold within (months)</option>
+            <option value="require_story_match">Require same stories (false)</option>
+            <option value="require_school_district_match">Require same ISD (false)</option>
           </select>
           <input type="number" id="step-val-input" step="any" value="4.0" aria-label="New value">
           <button type="button" class="btn-outline btn-sm" id="add-step-btn">+ Add step</button>
@@ -236,7 +242,11 @@
       max_distance_miles: 'Max distance (miles)',
       gla_bracket_pct: 'Living area (±%)',
       lot_bracket_pct: 'Lot size (±%)',
-      sale_date_max_months: 'Sold within (months)'
+      price_bracket_pct: 'Price (±%)',
+      max_age_diff_years: 'Max age diff (years)',
+      sale_date_max_months: 'Sold within (months)',
+      require_story_match: 'Require same stories',
+      require_school_district_match: 'Require same ISD'
     };
 
     function renderVisualSteps() {

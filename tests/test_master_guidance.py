@@ -476,11 +476,61 @@ def test_mcallen_dataset_runs_end_to_end(tmp_path, settings):
     subj_path.write_text(subj.model_dump_json(), encoding="utf-8")
     result = pipeline.run(mcallen_csv, subj_path, settings)
     assert result.manifest.row_counts["input_rows"] == 1055
-    # Only 1 listing passes the rules; the auto second round fills the 5 sold spots with the
-    # closest same-type / same-stories homes, each flagged to be replaced.
+    # Subject property itself (502912 = 3100 S 2nd Street #33) must be excluded as SUBJECT_PROPERTY.
+    self_excluded = {
+        e.mls_number for e in result.excluded if any("SUBJECT_PROPERTY" in r for r in e.reasons)
+    }
+    assert "502912" in self_excluded
     picks = result.final.picks
-    assert len(picks) == 6 and "502912" in {c.mls_number for c in picks}
+    assert len(picks) == 6 and "502912" not in {c.mls_number for c in picks}
     filled = {f.mls_number for f in result.flags if f.reason.value == "OUTSIDE_RULES_PICK"}
-    assert filled == set(result.manifest.second_round["filled"]) and len(filled) == 5
-    assert "502912" not in filled
+    assert filled == set(result.manifest.second_round["filled"]) and len(filled) == 6
+
+
+def test_expanded_distressed_remarks_catch_gutted_and_unfinished_shells(subject, settings):
+    from comps_pipeline.ingest.remarks import analyze_comp_remarks
+
+    for mls, text in (
+        ("GUT1", "Home has been completely gutted down to the shell and needs full buildout."),
+        ("UNF1", "Unfinished residential property being sold as incomplete construction."),
+        ("LIV1", "Property is not in livable condition and sold primarily for its land value."),
+    ):
+        c = make_comp(mls, public_remarks=text)
+        analyzed, _ = analyze_comp_remarks(c, subject, settings)
+        assert "_distressed_remarks" in analyzed.remarks_signals, mls
+        assert not distressed_filter([analyzed], subject, settings).kept, mls
+
+
+def test_cleaner_excludes_subject_and_infers_blank_subdivision(subject, settings):
+    from comps_pipeline.ingest.cleaner import clean, infer_subject_subdivision
+
+    subj = subject.model_copy(update={"address": "2115 N 32nd St", "subdivision": ""})
+    rows = [
+        {
+            "mls_number": "SELF1",
+            "status": "S",
+            "close_price": "298000",
+            "close_date": "2026-08-22",
+            "living_area": "1895",
+            "subdivision_raw": "McColl Estates",
+            "extras": {"Address": "2115 North 32nd Street"},
+        },
+        {
+            "mls_number": "COMP1",
+            "status": "S",
+            "close_price": "293000",
+            "close_date": "2026-03-01",
+            "living_area": "1730",
+            "subdivision_raw": "McColl Estates",
+            "extras": {"Address": "2908 E Uva Ave"},
+        },
+    ]
+    assert infer_subject_subdivision(rows, subj) == "McColl Estates"
+    out = clean(rows, subj, settings)
+    assert [c.mls_number for c in out.comps] == ["COMP1"]
+    assert any(
+        e.mls_number == "SELF1" and any("SUBJECT_PROPERTY" in r for r in e.reasons)
+        for e in out.excluded
+    )
+
 

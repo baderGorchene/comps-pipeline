@@ -28,15 +28,22 @@ DISTRESSED_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "cash_only_fixer",
         re.compile(
             r"\b(?:cash\s+only|investor\s+special|handyman\s+special|"
-            r"sold\s+as[\s-]is\s+where[\s-]is)\b",
+            r"sold\s+as[\s-]is\s+where[\s-]is|"
+            r"(?:extensive|major|significant)\s+repairs)\b",
             re.I,
         ),
     ),
     (
         "uninhabitable",
         re.compile(
-            r"\b(?:uninhabitable|tear[\s-]*down|condemned|fire\s+damage|"
-            r"severe\s+mold|foundation\s+failure|needs\s+full\s+rehab)\b",
+            r"\b(?:uninhabitable|unlivable|not\s+(?:in\s+)?livable(?:\s+condition)?|"
+            r"tear[\s-]*down|condemned|fire\s+damage|severe\s+mold|foundation\s+failure|"
+            r"needs\s+full\s+rehab|(?:completely\s+)?gutted|down\s+to\s+the\s+shell|shell\s+only|"
+            r"unfinished\s+(?:residential|home|house|property|construction)|"
+            r"(?:selling\s+as\s+)?incomplete\s+construction|"
+            r"(?:solely\s+on\s+the|primarily\s+for\s+its)\s+land\s+value|"
+            r"value\s+of\s+this\s+house\s+is\s+in\s+the\s+lot|"
+            r"have\s+to\s+be\s+demolished|best\s+suited\s+for\s+removal)\b",
             re.I,
         ),
     ),

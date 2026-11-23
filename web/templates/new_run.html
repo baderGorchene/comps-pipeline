@@ -53,9 +53,13 @@
     <div class="step-body">
       <div class="row-between">
         <h2>Describe the house you're appraising</h2>
-        <button type="button" class="btn-ghost btn-sm when-form" id="clear-subject-btn">Clear</button>
+        <div class="row-actions" style="display:flex;gap:.5rem;align-items:center;">
+          <button type="button" class="btn-outline btn-sm when-form" id="lookup-address-btn">Auto-fill GPS</button>
+          <button type="button" class="btn-ghost btn-sm when-form" id="clear-subject-btn">Clear</button>
+        </div>
       </div>
-      <p class="muted">Only the first four boxes are required. The more you fill in, the better the match.</p>
+      <p class="muted">Only address, living area, and effective date are required. Subdivision is optional and auto-detected when blank.</p>
+      <p class="small muted" id="lookup-status" hidden></p>
 
       <div class="switch" role="radiogroup" aria-label="Subject property">
         {% for radio in inputs.subject_source %}<label class="switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
@@ -65,7 +69,7 @@
         <label class="dropzone" for="{{ inputs.subject_file.id_for_label }}">
           <div class="dropzone-text">
             <strong>Choose a subject.yaml file</strong>
-            <span>Needs address, subdivision, living_area and effective_date.</span>
+            <span>Needs address, living_area and effective_date (subdivision optional).</span>
           </div>
           <div class="dropzone-input">{{ inputs.subject_file }}</div>
         </label>
@@ -76,13 +80,13 @@
         <h3 class="group-title">Required</h3>
         <div class="grid-fields">
           {% include "field.html" with field=subject.address wide=True %}
-          {% include "field.html" with field=subject.subdivision %}
           {% include "field.html" with field=subject.living_area %}
           {% include "field.html" with field=subject.effective_date %}
         </div>
 
         <h3 class="group-title">Recommended</h3>
         <div class="grid-fields grid-3">
+          {% include "field.html" with field=subject.subdivision %}
           {% include "field.html" with field=subject.year_built %}
           {% include "field.html" with field=subject.lot_size_sqft %}
           {% include "field.html" with field=subject.bedrooms %}
@@ -130,11 +134,12 @@
         </details>
 
         <details class="more">
-          <summary>Sale details <span class="muted">(optional)</span></summary>
+          <summary>Sale &amp; valuation details <span class="muted">(optional)</span></summary>
           <div class="grid-fields">
             {% include "field.html" with field=subject.transaction_type %}
             {% include "field.html" with field=subject.contract_price %}
-            {% include "field.html" with field=subject.construction_status wide=True %}
+            {% include "field.html" with field=subject.estimated_value %}
+            {% include "field.html" with field=subject.construction_status %}
           </div>
         </details>
       </div>
@@ -184,6 +189,42 @@
     document.getElementById('clear-subject-btn')?.addEventListener('click', function () {
       document.querySelectorAll('.when-form input:not([type="radio"]):not([type="hidden"]), .when-form select, .when-form textarea')
         .forEach(el => { if (el.type === 'checkbox') el.checked = false; else el.value = ''; });
+    });
+
+    document.getElementById('lookup-address-btn')?.addEventListener('click', async function () {
+      const addrEl = document.getElementById('id_address');
+      const cszEl = document.getElementById('id_city_state_zip');
+      const latEl = document.getElementById('id_latitude');
+      const lonEl = document.getElementById('id_longitude');
+      const statusEl = document.getElementById('lookup-status');
+      const addr = (addrEl?.value || '').trim();
+      const csz = (cszEl?.value || '').trim();
+      if (!addr) {
+        statusEl.textContent = 'Enter a street address first (include City, State, ZIP for best results).';
+        statusEl.hidden = false;
+        return;
+      }
+      this.disabled = true;
+      statusEl.textContent = 'Looking up coordinates via US Census Geocoder…';
+      statusEl.hidden = false;
+      try {
+        const qs = new URLSearchParams({ address: addr, city_state_zip: csz });
+        const resp = await fetch('{% url "lookup_address" %}?' + qs.toString());
+        const data = await resp.json();
+        if (resp.ok && data.status === 'ok') {
+          if (data.latitude != null && latEl) latEl.value = data.latitude;
+          if (data.longitude != null && lonEl) lonEl.value = data.longitude;
+          if (data.city_state_zip && cszEl && !cszEl.value.trim()) cszEl.value = data.city_state_zip;
+          latEl?.closest('details')?.setAttribute('open', '');
+          statusEl.textContent = 'Found: ' + (data.matched_address || addr) + ' (' + data.latitude + ', ' + data.longitude + ')';
+        } else {
+          statusEl.textContent = data.error || 'Address not found.';
+        }
+      } catch (e) {
+        statusEl.textContent = 'Lookup failed: ' + e.message;
+      } finally {
+        this.disabled = false;
+      }
     });
 
     document.getElementById('new-run-form')?.addEventListener('submit', function () {

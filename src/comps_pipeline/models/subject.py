@@ -12,7 +12,7 @@ class Subject(BaseModel):
 
     address: str
     living_area: int = Field(gt=0)
-    subdivision: str
+    subdivision: str = ""
     # Appraisal effective date: reference for "future" and "too old" sale dates.
     effective_date: dt.date
     # Optional when the MLS export already reports each comp's distance to the subject.

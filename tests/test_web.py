@@ -231,3 +231,33 @@ def test_find_more_comps_button_runs_second_round(client):
     page = client.get(second.url).content.decode()
     assert "Second round:" in page and "tag-new" in page
     assert "Find more comps</button>" not in page  # one extra round only
+
+
+def test_optional_subdivision_and_estimated_value_accepted(client):
+    res = _post(client, subdivision="", estimated_value="350000")
+    assert res.status_code == 302, res.content.decode()[:2000]
+    page = client.get(res["Location"]).content.decode()
+    assert "Final selection" in page
+
+
+def test_lookup_address_endpoint(client, monkeypatch):
+    from web import views
+
+    assert client.get("/lookup-address/").status_code == 400
+    monkeypatch.setattr(
+        views,
+        "_geocode_census",
+        lambda addr: {
+            "matched_address": "2115 N 32ND ST, HIDALGO, TX, 78557",
+            "latitude": 26.11699,
+            "longitude": -98.223002,
+            "city_state_zip": "Hidalgo, TX 78557",
+        },
+    )
+    resp = client.get("/lookup-address/?address=2115+N+32nd+St,+Hidalgo,+TX+78557")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert data["latitude"] == 26.11699
+    assert data["city_state_zip"] == "Hidalgo, TX 78557"
+

@@ -18,7 +18,7 @@ from comps_pipeline.ai.vision import run_vision
 from comps_pipeline.config.schema import Settings
 from comps_pipeline.filters.escalation import filter_with_escalation
 from comps_pipeline.filters.geo import compute_distances
-from comps_pipeline.ingest.cleaner import clean
+from comps_pipeline.ingest.cleaner import clean, infer_subject_subdivision
 from comps_pipeline.ingest.mapper import InputError, map_rows, read_csv, suggest_mapping
 from comps_pipeline.matching.subdivision import match_all
 from comps_pipeline.models import (
@@ -142,7 +142,17 @@ def run(
         rows = map_rows(raw, settings.column_mapping)
         headers = list(raw[0].keys()) if raw else []
         mapping = suggest_mapping(headers, settings.column_mapping)
-        audit.append(_summary("ingest", rows=len(rows), column_mapping=mapping))
+        inferred_sub = infer_subject_subdivision(rows, subject)
+        if inferred_sub:
+            subject = subject.model_copy(update={"subdivision": inferred_sub})
+        audit.append(
+            _summary(
+                "ingest",
+                rows=len(rows),
+                column_mapping=mapping,
+                **({"inferred_subdivision": inferred_sub} if inferred_sub else {}),
+            )
+        )
     raw_rows = dict(enumerate(rows, start=1))
 
     with timer.stage("clean"):
@@ -165,9 +175,14 @@ def run(
         }
         shortlists: dict[str, list[Comp]] = {}
         ranked_all: list[Comp] = []
+        effective_settings = settings.model_copy(
+            update={"filters": settings.filters_at(escalation.level)}
+        )
         for pool, (size, minimum) in pools.items():
             members = [c for c in comps if c.pool == pool]
-            ranked = rank(members, subject, settings, size, minimum, pool, prior_audit=audit)
+            ranked = rank(
+                members, subject, effective_settings, size, minimum, pool, prior_audit=audit
+            )
             flags.extend(ranked.flags)
             audit.extend(ranked.audit)
             excluded.extend(ranked.excluded)

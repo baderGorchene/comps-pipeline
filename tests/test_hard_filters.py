@@ -4,6 +4,8 @@ from fractions import Fraction
 import pytest
 
 from comps_pipeline.filters.hard_filters import (
+    _core_isd,
+    age_filter,
     apply_hard_filters,
     distance_filter,
     gla_filter,
@@ -13,6 +15,7 @@ from comps_pipeline.filters.hard_filters import (
     price_filter,
     required_features_filter,
     sale_date_filter,
+    sub_type_and_story_filter,
 )
 from comps_pipeline.models import Cell
 from tests.conftest import make_comp, with_filters
@@ -192,4 +195,79 @@ def test_price_filter_skipped_without_subject_benchmark(subject, settings):
     c_high = make_comp("outlier_high", close_price=2_000_000)
     res = price_filter([c_low, c_high], subject, settings)
     assert len(res.kept) == 2
+
+
+def test_peer_median_price_filter_blocks_outliers_for_refinance(subject, settings):
+    assert subject.benchmark_price is None
+    recent = dt.date(2026, 6, 1)
+    peers = [
+        make_comp(
+            f"P{i}",
+            living_area=2000,
+            close_price=300_000 + i * 2_000,
+            close_date=recent,
+            year_built=2005,
+        ).model_copy(
+            update={
+                "pool": "sold",
+                "distance_miles": Cell(value=0.3, source="COMPUTED"),
+            }
+        )
+        for i in range(6)
+    ]
+    cheap_outlier = make_comp(
+        "LOW", living_area=2000, close_price=110_000, close_date=recent, year_built=2005
+    ).model_copy(update={"pool": "sold", "distance_miles": Cell(value=0.3, source="COMPUTED")})
+    high_outlier = make_comp(
+        "HIGH", living_area=2000, close_price=480_000, close_date=recent, year_built=2005
+    ).model_copy(update={"pool": "sold", "distance_miles": Cell(value=0.3, source="COMPUTED")})
+    out = apply_hard_filters([*peers, cheap_outlier, high_outlier], subject, settings)
+    kept = {c.mls_number for c in out.comps}
+    assert kept == {f"P{i}" for i in range(6)}
+    excluded_by_mls = {e.mls_number: e.reasons for e in out.excluded}
+    assert any("price_bracket" in r for r in excluded_by_mls["LOW"])
+    assert any("price_bracket" in r for r in excluded_by_mls["HIGH"])
+
+
+def test_age_filter_boundaries_and_missing(subject, settings):
+    # subject year_built is 2005; default max_age_diff_years is 10 -> 1995..2015 kept
+    s = with_filters(settings, max_age_diff_years=10)
+    c_ok_old = make_comp("OLD_OK", year_built=1995)
+    c_too_old = make_comp("TOO_OLD", year_built=1984)
+    c_ok_new = make_comp("NEW_OK", year_built=2015)
+    c_too_new = make_comp("TOO_NEW", year_built=2016)
+    c_missing = make_comp("MISS", year_built=None)
+    res = age_filter([c_ok_old, c_too_old, c_ok_new, c_too_new, c_missing], subject, s)
+    assert [c.mls_number for c in res.kept] == ["OLD_OK", "NEW_OK", "MISS"]
+    res_strict = age_filter([c_missing], subject, with_filters(s, missing_age="exclude"))
+    assert not res_strict.kept
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        ("Hidalgo Independent School District", "Hidalgo ISD"),
+        ("HISD", "Hidalgo ISD"),
+        ("VVISD", "Valley View ISD"),
+        ("McAllen Independent School District", "MISD"),
+        ("Pharr-San Juan-Alamo ISD", "PSJA ISD"),
+    ],
+)
+def test_core_isd_normalizes_full_names_and_abbreviations(a, b):
+    assert _core_isd(a) == _core_isd(b)
+
+
+def test_sub_type_and_story_emit_distinct_rule_names(subject, settings):
+    subj = subject.model_copy(update={"property_sub_type": "House", "stories": 2.0})
+    one_story = make_comp("ONE").model_copy(
+        update={"extras": {"Property Sub-Type": "House", "# Stories": "1"}}
+    )
+    mobile = make_comp("MOB").model_copy(
+        update={"extras": {"Property Sub-Type": "Manufactured Home", "# Stories": "2"}}
+    )
+    res = sub_type_and_story_filter([one_story, mobile], subj, settings)
+    assert not res.kept
+    rules = {a.mls_number: a.rule for a in res.audit}
+    assert rules == {"ONE": "story_count", "MOB": "property_sub_type"}
+
 

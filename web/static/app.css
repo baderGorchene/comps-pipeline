@@ -1123,6 +1123,8 @@ button.primary:hover, a.primary:hover {
 .alert-review { background: var(--cell); border-left: 5px solid var(--ink); }
 .alert-block { background: var(--ink); color: #fff; }
 .alert-block p, .alert-block pre { color: #E4E4E7; }
+.alert-block a { color: #fff; text-decoration: underline; }
+.alert-block a:hover { color: #D4D4D8; }
 
 /* Executive Funnel Strip (Results Page) */
 .funnel-strip {

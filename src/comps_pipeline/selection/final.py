@@ -13,8 +13,10 @@ Also generates:
 
 from dataclasses import dataclass, field
 from fractions import Fraction
+import statistics
 
 from comps_pipeline.config.schema import Settings
+from comps_pipeline.filters.hard_filters import price_in_bracket
 from comps_pipeline.models import AuditEntry, Comp, Decision, Flag, FlagReason, Subject
 
 STAGE = "final_selection"
@@ -229,12 +231,35 @@ def select_final(
 
     current = gaps(chosen + fixed, subject, settings)
 
+    ref_price = subject.benchmark_price
+    if ref_price is None:
+        chosen_prices = [
+            p
+            for c in chosen
+            if (p := (c.close_price.value or c.list_price.value)) is not None
+        ]
+        if chosen_prices:
+            ref_price = round(statistics.median(chosen_prices))
+
     improved = True
     while current and improved:
         improved = False
         taken = {c.mls_number for c in chosen}
         candidates = [c for c in sold if c.mls_number not in taken]
         for cand in candidates:
+            if (
+                sel.max_swap_age_diff_years is not None
+                and subject.year_built is not None
+                and cand.year_built.value is not None
+                and abs(cand.year_built.value - subject.year_built) > sel.max_swap_age_diff_years
+            ):
+                continue
+            if sel.max_swap_price_diff_pct is not None and ref_price is not None:
+                cand_price = cand.close_price.value or cand.list_price.value
+                if cand_price is not None and not price_in_bracket(
+                    cand_price, ref_price, sel.max_swap_price_diff_pct, True
+                ):
+                    continue
             for i in range(len(chosen) - 1, -1, -1):  # lowest-ranked pick first
                 trial = chosen[:i] + [cand] + chosen[i + 1 :]
                 # In New Construction mode, swaps must preserve the subdivision quotas

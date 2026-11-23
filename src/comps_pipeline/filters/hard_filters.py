@@ -7,6 +7,8 @@ row fails, not only the first one.
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from fractions import Fraction
+import re
+import statistics
 from typing import Any
 
 from comps_pipeline.config.schema import Settings
@@ -183,6 +185,32 @@ def price_filter(comps: list[Comp], subject: Subject, settings: Settings) -> Fil
     return res
 
 
+def age_filter(comps: list[Comp], subject: Subject, settings: Settings) -> FilterResult:
+    """Exclude comps whose year_built differs from subject by more than max_age_diff_years."""
+    rule, f = "age_bracket", settings.filters
+    if subject.year_built is None or f.max_age_diff_years is None:
+        return FilterResult(kept=list(comps))
+    res = FilterResult()
+    for c in comps:
+        yb = c.year_built.value
+        if yb is None:
+            if f.missing_age == "exclude":
+                res.audit.append(_entry(c, Decision.EXCLUDED, rule, "year_built unknown"))
+            else:
+                res.kept.append(c)
+                res.audit.append(_entry(c, Decision.FLAGGED, rule, "year_built unknown, kept"))
+        elif abs(yb - subject.year_built) <= f.max_age_diff_years:
+            res.kept.append(c)
+        else:
+            diff = abs(yb - subject.year_built)
+            msg = (
+                f"year_built {yb} differs by {diff} yrs "
+                f"(> max {f.max_age_diff_years} yrs from subject {subject.year_built})"
+            )
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg, year_built=yb))
+    return res
+
+
 def subdivision_filter(comps: list[Comp], subject: Subject, settings: Settings) -> FilterResult:
     """Needs subdivision matching to have set subdivision_tier (see matching/subdivision.py)."""
     rule, res = "subdivision_match", FilterResult()
@@ -310,25 +338,30 @@ def _normalize_sub_type(raw: str) -> str:
 def sub_type_and_story_filter(
     comps: list[Comp], subject: Subject, settings: Settings
 ) -> FilterResult:
-    """Step 2 Master Guidance: Enforce Property Sub-Type and Story Count matching when present."""
-    rule, f, res = "sub_type_and_stories", settings.filters, FilterResult()
+    """Step 2 Master Guidance: Enforce Property Sub-Type and Story Count matching when present.
+
+    Emits distinct rule names ('property_sub_type' vs 'story_count') so second-round
+    never_relax can protect house-vs-mobile/condo without blocking 1-story/2-story fallback.
+    """
+    f, res = settings.filters, FilterResult()
     subj_type = (
         _normalize_sub_type(subject.property_sub_type) if subject.property_sub_type else None
     )
     subj_stories = subject.stories
     for c in comps:
-        reasons: list[str] = []
+        sub_reasons: list[str] = []
+        story_reasons: list[str] = []
         raw_type = c.extra_str(
             "Property Sub-Type", "Property Sub Type", "PropertySubType", "Sub-Type", "PT"
         )
         if f.require_sub_type_match and raw_type:
             comp_type = _normalize_sub_type(raw_type)
             if comp_type == "manufactured" and (subj_type in (None, "single_family")):
-                reasons.append(
+                sub_reasons.append(
                     f"manufactured/mobile home ({raw_type!r}) incompatible with site-built SFR"
                 )
             elif subj_type and comp_type != subj_type:
-                reasons.append(
+                sub_reasons.append(
                     f"property sub-type {raw_type!r} != subject {subject.property_sub_type!r}"
                 )
         raw_stories = c.extra_str("# Stories", "Stories", "Levels", "Story Count", "StoriesTotal")
@@ -336,14 +369,20 @@ def sub_type_and_story_filter(
             try:
                 comp_stories = float(raw_stories.split()[0])
                 if abs(comp_stories - subj_stories) >= 0.5:
-                    reasons.append(
+                    story_reasons.append(
                         f"stories {comp_stories:g} != subject stories {subj_stories:g}"
                     )
             except ValueError:
                 pass
-        if reasons:
-            res.audit.append(_entry(c, Decision.EXCLUDED, rule, "; ".join(reasons)))
-        else:
+        if sub_reasons:
+            res.audit.append(
+                _entry(c, Decision.EXCLUDED, "property_sub_type", "; ".join(sub_reasons))
+            )
+        if story_reasons:
+            res.audit.append(
+                _entry(c, Decision.EXCLUDED, "story_count", "; ".join(story_reasons))
+            )
+        if not sub_reasons and not story_reasons:
             res.kept.append(c)
     return res
 
@@ -378,14 +417,38 @@ def foundation_compatibility_filter(
     return res
 
 
+_ISD_ALIASES: dict[str, str] = {
+    "hisd": "hidalgo",
+    "vvisd": "valley view",
+    "vv": "valley view",
+    "misd": "mcallen",
+    "sisd": "sharyland",
+    "ecisd": "edinburg",
+    "ljisd": "la joya",
+    "wisd": "weslaco",
+    "hcisd": "harlingen",
+    "bisd": "brownsville",
+    "psja": "psja",
+    "pharr san juan alamo": "psja",
+    "rrisd": "round rock",
+    "lisd": "leander",
+    "aisd": "austin",
+}
+
+_ISD_SUFFIXES = re.compile(
+    r"\b(?:consolidated\s+independent\s+school\s+district|"
+    r"independent\s+school\s+district|"
+    r"school\s+district|cisd|isd|independent)\b",
+    re.I,
+)
+
+
 def _core_isd(raw: str) -> str:
-    return (
-        raw.casefold()
-        .replace("cisd", "")
-        .replace("isd", "")
-        .replace("school district", "")
-        .strip()
-    )
+    cleaned = re.sub(r"[^a-z0-9]+", " ", raw.casefold()).strip()
+    if cleaned in _ISD_ALIASES:
+        return _ISD_ALIASES[cleaned]
+    stripped = re.sub(r"\s+", " ", _ISD_SUFFIXES.sub(" ", cleaned)).strip()
+    return _ISD_ALIASES.get(stripped, stripped)
 
 
 def school_and_utility_guardrail_filter(
@@ -441,6 +504,7 @@ FILTERS: tuple[Callable[[list[Comp], Subject, Settings], FilterResult], ...] = (
     lot_filter,
     distance_filter,
     price_filter,
+    age_filter,
     subdivision_filter,
     required_features_filter,
     distressed_filter,
@@ -449,6 +513,12 @@ FILTERS: tuple[Callable[[list[Comp], Subject, Settings], FilterResult], ...] = (
     foundation_compatibility_filter,
     school_and_utility_guardrail_filter,
 )
+
+
+def _comp_price(c: Comp) -> int | None:
+    if c.pool == "sold" and c.close_price.value is not None:
+        return c.close_price.value
+    return c.close_price.value or c.list_price.value
 
 
 def apply_hard_filters(comps: list[Comp], subject: Subject, settings: Settings) -> StageOutput:
@@ -461,6 +531,50 @@ def apply_hard_filters(comps: list[Comp], subject: Subject, settings: Settings) 
         for a in res.audit:
             if a.decision == Decision.EXCLUDED and a.mls_number is not None:
                 failures.setdefault(a.mls_number, []).append(f"{a.rule}: {a.detail['message']}")
+
+    # Peer-anchored price outlier gate for Refinances when no benchmark_price is provided.
+    f = settings.filters
+    if subject.benchmark_price is None and f.price_bracket_pct is not None:
+        peers = [
+            c
+            for c in comps
+            if c.mls_number not in failures
+            and c.pool == "sold"
+            and c.close_price.value is not None
+            and c.living_area.value is not None
+            and c.living_area.value > 0
+        ]
+        if len(peers) >= 5:
+            med_ppsf = statistics.median(c.close_price.value / c.living_area.value for c in peers)
+            implied = round(med_ppsf * subject.living_area)
+            if implied > 0:
+                op = "inclusive" if f.price_bracket_inclusive else "exclusive"
+                for c in comps:
+                    price = _comp_price(c)
+                    if price is None:
+                        if f.missing_price == "exclude":
+                            entry = _entry(c, Decision.EXCLUDED, "price_bracket", "price unknown")
+                            raw_audit.append(entry)
+                            failures.setdefault(c.mls_number, []).append(
+                                f"{entry.rule}: {entry.detail['message']}"
+                            )
+                        else:
+                            raw_audit.append(
+                                _entry(c, Decision.FLAGGED, "price_bracket", "price unknown, kept")
+                            )
+                    elif not price_in_bracket(
+                        price, implied, f.price_bracket_pct, f.price_bracket_inclusive
+                    ):
+                        msg = (
+                            f"price ${price:,} outside +/-{f.price_bracket_pct}% ({op}) "
+                            f"of peer-implied market value ${implied:,}"
+                        )
+                        entry = _entry(c, Decision.EXCLUDED, "price_bracket", msg, price=price)
+                        raw_audit.append(entry)
+                        failures.setdefault(c.mls_number, []).append(
+                            f"{entry.rule}: {entry.detail['message']}"
+                        )
+
     out.audit.extend(
         a for a in raw_audit if a.decision != Decision.FLAGGED or a.mls_number not in failures
     )

@@ -13,6 +13,7 @@ from fractions import Fraction
 from typing import Any
 
 from comps_pipeline.config.schema import Settings
+from comps_pipeline.filters.hard_filters import _core_isd
 from comps_pipeline.models import (
     AuditEntry,
     Cell,
@@ -195,6 +196,34 @@ def _adu_priority(c: Comp, subject: Subject) -> int:
     return 0 if comp_has_adu == subject.has_adu else 1
 
 
+def _story_priority(c: Comp, subject: Subject) -> int:
+    """Soft tie-breaker: prefer same story count when the hard story filter is relaxed."""
+    if subject.stories is None:
+        return 0
+    raw = c.extra_str("# Stories", "Stories", "Levels", "Story Count", "StoriesTotal")
+    if not raw:
+        return 1
+    try:
+        comp_stories = float(raw.split()[0])
+    except ValueError:
+        return 1
+    return 0 if abs(comp_stories - subject.stories) < 0.5 else 1
+
+
+def _isd_priority(c: Comp, subject: Subject) -> int:
+    """Soft tie-breaker: prefer same school district when the hard ISD filter is relaxed."""
+    subj_isd = (subject.school_district or "").strip()
+    if not subj_isd:
+        return 0
+    comp_isd = c.extra_str(
+        "School District", "ISD", "SchoolDistrict", "High School District", "_extracted_isd"
+    ).strip()
+    if not comp_isd:
+        return 1
+    norm_s, norm_c = _core_isd(subj_isd), _core_isd(comp_isd)
+    return 0 if (norm_s and norm_c and norm_s == norm_c) else 1
+
+
 def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
     bands = settings.ranking.tolerance_bands
     tier = c.subdivision_tier.value
@@ -217,6 +246,8 @@ def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
         _contract_price_bucket(c, subject),
         _pool_priority(c, subject),
         _adu_priority(c, subject),
+        _story_priority(c, subject),
+        _isd_priority(c, subject),
         _raw(distance),
         _raw(c.gla_diff_pct.value),
         c.mls_number,

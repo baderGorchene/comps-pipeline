@@ -71,6 +71,9 @@ def match_subdivision(
 def match_all(comps: list[Comp], subject: Subject, settings: Settings) -> StageOutput:
     """Annotates tier and score. Exclusion of tier 3 happens in the hard filters."""
     out = StageOutput()
+    if not subject.subdivision.strip():
+        out.comps = list(comps)
+        return out
     index = alias_index(settings.subdivision_aliases, settings.matching.noise_words)
     for comp in comps:
         raw = comp.subdivision_raw.value

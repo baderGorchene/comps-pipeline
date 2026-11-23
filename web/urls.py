@@ -4,6 +4,7 @@ from web import views
 
 urlpatterns = [
     path("", views.new_run, name="new_run"),
+    path("lookup-address/", views.lookup_address, name="lookup_address"),
     path("config/", views.config_view, name="config"),
     path("how-it-works/", views.how_it_works, name="how_it_works"),
     path("runs/", views.history, name="history"),

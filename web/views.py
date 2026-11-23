@@ -8,6 +8,9 @@ import logging
 import re
 import shutil
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -41,14 +44,19 @@ RULE_LABELS = {
     "max_distance": "Distance beyond maximum limit",
     "gla_bracket": "Living area outside ±% bracket",
     "lot_bracket": "Lot size outside ±% bracket",
+    "price_bracket": "Price outside ±% bracket",
+    "age_bracket": "Year built outside max age difference",
     "sale_date_window": "Sold before lookback window cutoff",
     "subdivision_match": "Subdivision did not match subject",
     "required_features": "Missing required property feature",
     "distressed_sale": "Distressed / non-arm's-length sale (REO, Short Sale, Foreclosure, Fixer)",
     "age_restriction_55_plus": "55+ age-restricted community mismatch",
     "sub_type_and_stories": "Property sub-type or story count mismatch",
+    "property_sub_type": "Property sub-type mismatch (House vs. Condo/Townhouse/Manufactured)",
+    "story_count": "Story count mismatch",
     "foundation_compatibility": "Incompatible foundation type (Slab vs. Crawl Space/Pier & Beam)",
     "market_guardrails": "School District (ISD), Utility (Septic/Sewer), or stale Active DOM",
+    "SUBJECT_PROPERTY": "Subject property itself in MLS export",
     "STATUS_NOT_USED": "Unused MLS status (Expired / Withdrawn / Other)",
     "DUPLICATE_LISTING": "Duplicate MLS listing number",
     "MISSING_REQUIRED_FIELD": "Missing required field (e.g. MLS #, GLA, Close Price)",
@@ -208,6 +216,62 @@ def _cfg_summary(cfg: dict[str, Any]) -> dict[str, Any]:
         "mapped_fields": sum(1 for v in cfg.get("column_mapping", {}).values() if v),
         "aliases_count": len(cfg.get("subdivision_aliases", {})),
     }
+
+
+def _geocode_census(full_address: str) -> dict[str, Any] | None:
+    """Resolve an address via the official US Census Geocoder (free, no API key)."""
+    query = urllib.parse.urlencode(
+        {
+            "address": full_address,
+            "benchmark": "Public_AR_Current",
+            "format": "json",
+        }
+    )
+    url = f"https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?{query}"
+    req = urllib.request.Request(url, headers={"User-Agent": "comps-pipeline/1.0"})
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    matches = data.get("result", {}).get("addressMatches") or []
+    if not matches:
+        return None
+    top = matches[0]
+    coords = top.get("coordinates") or {}
+    comp = top.get("addressComponents") or {}
+    city = comp.get("city", "").title()
+    state = comp.get("state", "").upper()
+    zipcode = comp.get("zip", "")
+    city_state_zip = ", ".join(p for p in (city, f"{state} {zipcode}".strip()) if p)
+    return {
+        "matched_address": top.get("matchedAddress", ""),
+        "latitude": round(float(coords["y"]), 6) if "y" in coords else None,
+        "longitude": round(float(coords["x"]), 6) if "x" in coords else None,
+        "city_state_zip": city_state_zip,
+    }
+
+
+def lookup_address(request: HttpRequest) -> JsonResponse:
+    """AJAX endpoint: resolve street address into GPS coordinates and city/state/zip."""
+    address = (request.GET.get("address") or "").strip()
+    city_state_zip = (request.GET.get("city_state_zip") or "").strip()
+    if not address:
+        return JsonResponse({"status": "error", "error": "Enter a street address first."}, status=400)
+    full = f"{address}, {city_state_zip}" if city_state_zip and city_state_zip.casefold() not in address.casefold() else address
+    try:
+        hit = _geocode_census(full)
+    except (urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+        return JsonResponse(
+            {"status": "error", "error": f"Address lookup service unavailable: {exc}"},
+            status=502,
+        )
+    if not hit:
+        return JsonResponse(
+            {
+                "status": "not_found",
+                "error": "No exact match found. Include City, State, and ZIP (e.g. 2115 N 32nd St, Hidalgo, TX 78557).",
+            },
+            status=404,
+        )
+    return JsonResponse({"status": "ok", **hit})
 
 
 def new_run(request: HttpRequest) -> HttpResponse:
@@ -540,12 +604,22 @@ STEP_LABELS = {
     "max_distance_miles": "distance {} mi",
     "gla_bracket_pct": "living area ±{}%",
     "lot_bracket_pct": "lot ±{}%",
+    "price_bracket_pct": "price ±{}%",
+    "max_age_diff_years": "age ±{} yrs",
     "sale_date_max_months": "sold within {} months",
 }
 
 
 def _describe_step(overrides: dict[str, Any]) -> str:
-    return ", ".join(STEP_LABELS.get(k, k + " {}").format(v) for k, v in overrides.items())
+    parts: list[str] = []
+    for k, v in overrides.items():
+        if k == "require_story_match" and v is False:
+            parts.append("any story count")
+        elif k == "require_school_district_match" and v is False:
+            parts.append("any school district")
+        else:
+            parts.append(STEP_LABELS.get(k, k + " {}").format(v))
+    return ", ".join(parts)
 
 
 def _build_pipeline_trace(

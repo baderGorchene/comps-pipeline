@@ -181,3 +181,30 @@ def test_c1_deficit_flag_when_insufficient_in_sub_or_out_sub(subject, settings):
     reasons = [f.reason for f in final.flags]
     assert FlagReason.NEW_CONST_SUBDIVISION_DEFICIT in reasons
 
+
+def test_bracketing_swap_rejects_extreme_age_and_price_outliers(subject, settings):
+    # Subject built 2022, estimated_value 300k; initial picks are all 2023-2025 around 295k-305k.
+    # Candidate OLD_CHEAP is 1984 ($110k) and would bracket age below, but must be rejected.
+    # Candidate CLOSE_OLDER is 2019 ($285k) and is within swap guardrails -> must be picked instead.
+    subj_new = subject.model_copy(
+        update={"year_built": 2022, "estimated_value": 300_000, "bedrooms": 3, "baths_full": 2, "baths_half": 1}
+    )
+    top = [
+        comp(f"S{i}", i, year=2024).model_copy(update={"close_price": make_comp(f"S{i}", close_price=300_000).close_price})
+        for i in range(1, 6)
+    ]
+    old_cheap = comp("OLD_CHEAP", 6, year=1984).model_copy(
+        update={"close_price": make_comp("OLD_CHEAP", close_price=110_000).close_price}
+    )
+    close_older = comp("CLOSE_OLDER", 7, year=2019).model_copy(
+        update={"close_price": make_comp("CLOSE_OLDER", close_price=285_000).close_price}
+    )
+    s = settings.model_copy(
+        update={"selection": settings.selection.model_copy(update={"bracket_attributes": ["age"]})}
+    )
+    out = select_final([*top, old_cheap, close_older], [], subj_new, s)
+    picked = {c.mls_number for c in out.picks}
+    assert "OLD_CHEAP" not in picked
+    assert "CLOSE_OLDER" in picked
+
+

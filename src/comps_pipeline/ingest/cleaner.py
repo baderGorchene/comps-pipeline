@@ -2,6 +2,7 @@
 
 import calendar
 import datetime as dt
+import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -21,6 +22,58 @@ from comps_pipeline.models import (
 )
 
 STAGE = "clean"
+
+_STREET_SUFFIXES: dict[str, str] = {
+    "street": "st",
+    "avenue": "ave",
+    "boulevard": "blvd",
+    "drive": "dr",
+    "road": "rd",
+    "lane": "ln",
+    "court": "ct",
+    "circle": "cir",
+    "place": "pl",
+    "terrace": "ter",
+    "parkway": "pkwy",
+    "highway": "hwy",
+    "north": "n",
+    "south": "s",
+    "east": "e",
+    "west": "w",
+}
+
+
+def normalize_street_address(raw: str) -> str:
+    """Normalize the street portion of an address for reliable subject self-matching."""
+    street = raw.split(",")[0].strip().casefold()
+    tokens = re.findall(r"[a-z0-9]+", street)
+    return " ".join(_STREET_SUFFIXES.get(t, t) for t in tokens)
+
+
+def _row_address(row: dict[str, Any]) -> str:
+    extras = row.get("extras") or {}
+    for key, val in extras.items():
+        if key.strip().casefold() in {"address", "street address", "property address"}:
+            s = str(val or "").strip()
+            if s:
+                return s
+    return ""
+
+
+def infer_subject_subdivision(rows: list[dict[str, Any]], subject: Subject) -> str | None:
+    """If subject.subdivision is blank, try pulling it from a matching address row in the CSV."""
+    if subject.subdivision.strip():
+        return None
+    subj_norm = normalize_street_address(subject.address)
+    if not subj_norm:
+        return None
+    for row in rows:
+        addr = _row_address(row)
+        if addr and normalize_street_address(addr) == subj_norm:
+            sub = str(row.get("subdivision_raw", "")).strip()
+            if sub:
+                return sub
+    return None
 
 
 def months_before(day: dt.date, months: int) -> dt.date:
@@ -161,6 +214,7 @@ def parse_comp(
 def clean(rows: list[dict[str, Any]], subject: Subject, settings: Settings) -> StageOutput:
     out = StageOutput()
     seen: set[str] = set()
+    subj_addr_norm = normalize_street_address(subject.address)
 
     def exclude(source_row: int, mls: str | None, reason: FlagReason, message: str) -> None:
         out.flags.append(settings.flag(reason, mls, message))
@@ -189,6 +243,20 @@ def clean(rows: list[dict[str, Any]], subject: Subject, settings: Settings) -> S
             )
             continue
         seen.add(mls)
+        row_addr = _row_address(row)
+        if subj_addr_norm and row_addr and normalize_street_address(row_addr) == subj_addr_norm:
+            msg = f"matches subject address {subject.address!r}"
+            out.excluded.append(Excluded(source_row, mls, STAGE, [f"SUBJECT_PROPERTY: {msg}"]))
+            out.audit.append(
+                AuditEntry(
+                    mls_number=mls,
+                    stage=STAGE,
+                    decision=Decision.EXCLUDED,
+                    rule="SUBJECT_PROPERTY",
+                    detail={"source_row": source_row, "message": msg},
+                )
+            )
+            continue
         status = str(row.get("status", "")).strip()
         pool = settings.status.pool_of(status)
         if pool is None:

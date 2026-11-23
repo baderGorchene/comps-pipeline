@@ -156,7 +156,12 @@ class SubjectForm(forms.Form):
         required=False,
         help_text="Target school district (e.g. McAllen ISD)",
     )
-    subdivision = forms.CharField(label="Subdivision name", max_length=200)
+    subdivision = forms.CharField(
+        label="Subdivision name",
+        max_length=200,
+        required=False,
+        help_text="Optional — auto-filled from MLS export or address lookup when blank",
+    )
     effective_date = forms.DateField(
         label="Valuation effective date", widget=forms.DateInput(attrs={"type": "date"})
     )
@@ -245,6 +250,13 @@ class SubjectForm(forms.Form):
         required=False,
     )
     contract_price = _int("Contract price ($)", 1, 100_000_000, required=False)
+    estimated_value = _int(
+        "Estimated / target value ($)",
+        1,
+        100_000_000,
+        required=False,
+        help_text="Optional price anchor for Refinances (otherwise peer median is used)",
+    )
     construction_status = forms.ChoiceField(
         label="Construction status",
         choices=[
@@ -345,6 +357,8 @@ class RulesForm(forms.Form):
     lot_bracket_pct = _int("Lot size (acres) within ± %", 0, 100)
     max_distance_miles = forms.FloatField(label="Max distance (miles)", min_value=0.01)
     sale_date_max_months = _int("Sold within (months)", 1, 120)
+    price_bracket_pct = _int("Price within ± %", 0, 100, required=False)
+    max_age_diff_years = _int("Max age difference (years)", 0, 100, required=False)
     require_subdivision_match = forms.BooleanField(
         label="Require the same subdivision", required=False
     )
@@ -381,7 +395,7 @@ class RulesForm(forms.Form):
     @classmethod
     def initial_from(cls, cfg: dict[str, Any]) -> dict[str, Any]:
         f, r, s = cfg["filters"], cfg["run"], cfg["selection"]
-        initial = {k: f[k] for k in cls.base_fields if k in f}
+        initial = {k: ("" if f[k] is None else f[k]) for k in cls.base_fields if k in f}
         initial.update({k: r[k] for k in ("shortlist_size", "min_shortlist_size")})
         initial["listing_shortlist_size"] = r["listing_shortlist_size"]
         initial.update({k: s[k] for k in cls.base_fields if k in s})

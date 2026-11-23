@@ -59,6 +59,8 @@ class FilterSettings(Strict):
     price_bracket_pct: int | None = Field(default=None, ge=0, le=100)
     price_bracket_inclusive: bool = True
     missing_price: Literal["exclude", "keep_and_flag"] = "exclude"
+    max_age_diff_years: int | None = Field(default=None, ge=0)
+    missing_age: Literal["exclude", "keep_and_flag"] = "keep_and_flag"
     require_subdivision_match: bool
     subdivision_min_score: float = Field(ge=0, le=100)
     sale_date_max_months: int = Field(gt=0)  # sold pool only
@@ -123,6 +125,9 @@ class SelectionSettings(Strict):
     bracket_attributes: list[str]
     # false = the rule as written: one comp strictly above AND one strictly below.
     equal_counts_as_bracketed: bool
+    # Guardrails so bracketing swaps never pull in extreme price or age outliers.
+    max_swap_price_diff_pct: int | None = Field(default=25, ge=0, le=100)
+    max_swap_age_diff_years: int | None = Field(default=15, ge=0)
 
     @field_validator("bracket_attributes")
     @classmethod
@@ -151,7 +156,7 @@ class SecondRoundSettings(Strict):
     auto: bool = True  # run it automatically when picks come up short (else: button in the UI)
     extra_relax_steps: int = Field(default=1, ge=0)  # how far past round 1's level to look
     fill_to_pick_count: bool = True  # still short? top up with flagged out-of-rules comps
-    never_relax: list[str] = Field(default_factory=lambda: ["sub_type_and_stories"])
+    never_relax: list[str] = Field(default_factory=lambda: ["property_sub_type"])
     remove_if_flagged: list[FlagReason] = Field(
         default_factory=lambda: [
             FlagReason.VISUAL_QC_MISMATCH,
