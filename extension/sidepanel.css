@@ -1,0 +1,165 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  background: #F7F7F8;
+  color: #18181B;
+}
+body {
+  display: flex;
+  flex-direction: column;
+}
+.ext-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #18181B;
+  color: #FFFFFF;
+  font-size: 13px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #27272A;
+}
+.ext-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ext-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22C55E;
+  display: inline-block;
+}
+.ext-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ext-actions button {
+  background: transparent;
+  border: 1px solid #3F3F46;
+  color: #F4F4F5;
+  border-radius: 6px;
+  width: 26px;
+  height: 24px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.ext-actions button:hover {
+  background: #27272A;
+}
+.ext-settings {
+  background: #FFFFFF;
+  border-bottom: 1px solid #E4E4E7;
+  padding: 10px 12px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.ext-settings label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: #3F3F46;
+}
+.ext-url-row {
+  display: flex;
+  gap: 6px;
+}
+.ext-url-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #D4D4D8;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.ext-primary {
+  background: #18181B;
+  color: #FFFFFF;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ext-primary:hover {
+  background: #27272A;
+}
+.ext-presets {
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ext-preset {
+  background: #F4F4F5;
+  color: #3F3F46;
+  border: 1px solid #E4E4E7;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ext-preset:hover {
+  background: #E4E4E7;
+}
+.ext-hint {
+  margin: 6px 0 0;
+  color: #52525B;
+  font-size: 11px;
+}
+.ext-frame-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+#app-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: #F7F7F8;
+}
+.ext-offline {
+  position: absolute;
+  inset: 0;
+  background: #F7F7F8;
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  z-index: 2;
+}
+.ext-offline[hidden] {
+  display: none;
+}
+.ext-offline h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.ext-offline p {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  color: #52525B;
+  line-height: 1.45;
+}
+.ext-offline code {
+  background: #E4E4E7;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}

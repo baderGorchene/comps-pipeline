@@ -265,3 +265,22 @@ def test_lookup_address_endpoint(client, monkeypatch):
     assert data["latitude"] == 26.11699
     assert data["city_state_zip"] == "Hidalgo, TX 78557"
 
+
+def test_sidebar_extension_csp_headers_and_manifest(client):
+    import json
+
+    page = client.get("/")
+    assert "X-Frame-Options" not in page.headers
+    csp = page.headers.get("Content-Security-Policy", "")
+    assert "frame-ancestors" in csp and "chrome-extension:" in csp and "edge-extension:" in csp
+
+    ext_dir = ROOT / "extension"
+    manifest = json.loads((ext_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["manifest_version"] == 3
+    assert "sidePanel" in manifest["permissions"]
+    assert (ext_dir / manifest["side_panel"]["default_path"]).is_file()
+    assert (ext_dir / manifest["background"]["service_worker"]).is_file()
+    for icon_path in manifest["icons"].values():
+        assert (ext_dir / icon_path).is_file()
+
+

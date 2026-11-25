@@ -22,6 +22,8 @@ CSRF_TRUSTED_ORIGINS = [
 if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_SAMESITE = "None"
 
 INSTALLED_APPS = ["django.contrib.staticfiles", "web"]
 MIDDLEWARE = [
@@ -29,7 +31,7 @@ MIDDLEWARE = [
     *(["whitenoise.middleware.WhiteNoiseMiddleware"] if _has_whitenoise else []),
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "web.middleware.SidebarFrameMiddleware",
 ]
 ROOT_URLCONF = "web.urls"
 TEMPLATES = [

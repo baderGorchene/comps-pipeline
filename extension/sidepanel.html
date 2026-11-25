@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comps Shortlist Sidebar</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="ext-bar">
+    <div class="ext-brand">
+      <span class="ext-dot" aria-hidden="true"></span>
+      <strong>Comps Shortlist</strong>
+    </div>
+    <div class="ext-actions">
+      <button type="button" id="btn-reload" title="Reload app" aria-label="Reload app">↻</button>
+      <button type="button" id="btn-popout" title="Open in full browser tab" aria-label="Open in full tab">↗</button>
+      <button type="button" id="btn-settings" title="Server URL settings" aria-label="Server settings">⚙</button>
+    </div>
+  </header>
+
+  <section class="ext-settings" id="settings-drawer" hidden>
+    <label for="server-url">App Server URL</label>
+    <div class="ext-url-row">
+      <input type="url" id="server-url" placeholder="http://127.0.0.1:8000" spellcheck="false">
+      <button type="button" id="btn-save-url" class="ext-primary">Connect</button>
+    </div>
+    <div class="ext-presets">
+      <button type="button" class="ext-preset" data-url="http://127.0.0.1:8000">Local (127.0.0.1:8000)</button>
+    </div>
+    <p class="ext-hint" id="settings-msg" hidden></p>
+  </section>
+
+  <main class="ext-frame-wrap">
+    <div class="ext-offline" id="offline-banner" hidden>
+      <h2>Cannot reach Comps Shortlist</h2>
+      <p>Make sure the server is running at <code id="offline-url">http://127.0.0.1:8000</code> (run <code>run.bat</code> locally or enter your deployed URL in ⚙ Settings).</p>
+      <button type="button" id="btn-retry" class="ext-primary">Retry</button>
+    </div>
+    <iframe
+      id="app-frame"
+      title="Comps Shortlist App"
+      allow="clipboard-read; clipboard-write"
+    ></iframe>
+  </main>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

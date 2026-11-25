@@ -2046,5 +2046,32 @@ table.plain td { vertical-align: top; }
 .find-more { display: flex; gap: 1rem; align-items: center; justify-content: space-between; margin: 0 0 1rem; }
 .find-more p { margin: .25rem 0 0; }
 .find-more button { white-space: nowrap; flex-shrink: 0; }
+
+/* Compact sidebar layout (Chrome/Edge Side Panel: ~360-520px wide) */
+@media (max-width: 520px) {
+  html { font-size: 14.5px; }
+  .topbar-inner { padding: .5rem .75rem; flex-direction: column; align-items: stretch; gap: .4rem; }
+  .brand { justify-content: flex-start; }
+  .topnav { gap: .2rem; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .topnav-link { font-size: .82rem; padding: .35rem .6rem; white-space: nowrap; }
+  .app-main { padding: .85rem .7rem 2.5rem; }
+  .page-head { margin-bottom: .9rem; }
+  .page-head h1 { font-size: 1.3rem; }
+  .lead { font-size: .92rem; }
+  .card, .step-card, .panel { padding: .95rem; border-radius: 10px; margin-bottom: .8rem; }
+  .step-card { gap: .6rem; }
+  .step-badge { width: 1.65rem; height: 1.65rem; font-size: .82rem; }
+  .grid-fields, .grid-fields.grid-3 { grid-template-columns: 1fr !important; gap: .65rem; }
+  .config-studio { grid-template-columns: 1fr !important; gap: .85rem; }
+  .mini-funnel { gap: .4rem; }
+  .mini-funnel li { min-width: calc(50% - .4rem); padding: .5rem .65rem; }
+  .mini-funnel strong { font-size: 1.15rem; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: .15rem; }
+  .tab { white-space: nowrap; padding: .5rem .65rem; font-size: .84rem; }
+  .find-more { flex-direction: column; align-items: stretch; }
+  .btn-lg, #submit-run-btn { width: 100%; justify-content: center; }
+  .save-bar { flex-direction: column-reverse; align-items: stretch; }
+  .save-bar > * { text-align: center; }
+}
 .tag-new { background: #e7f5ec; color: #17663a; }
 .tag-warn { background: #fff4e0; color: #8a5300; }

@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Comps Shortlist — UAD 3.6 Sidebar",
+  "version": "1.0.0",
+  "description": "Side-by-side UAD 3.6 comparable property shortlisting right inside your browser sidebar.",
+  "permissions": ["sidePanel", "storage"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Open Comps Shortlist Sidebar",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
+}
