@@ -100,7 +100,9 @@ def _build_selection_rationale(
         if comp.pool == "sold"
         else f"Active/Pending Listing ({comp.status.value or 'Listing'})"
     )
-    base = f"Rank #{comp.rank} {pool_label} ({sub_desc}, {dist_desc}, {gla_desc})"
+    adj = comp.adjusted_price.value
+    adj_desc = f", adj. ${adj:,}" if adj is not None else ""
+    base = f"Rank #{comp.rank} {pool_label} ({sub_desc}, {dist_desc}, {gla_desc}{adj_desc})"
     if c1_mode:
         loc_tag = (
             "in-subdivision builder/resale comp"
@@ -236,7 +238,8 @@ def select_final(
         chosen_prices = [
             p
             for c in chosen
-            if (p := (c.close_price.value or c.list_price.value)) is not None
+            if (p := (c.adjusted_price.value or c.close_price.value or c.list_price.value))
+            is not None
         ]
         if chosen_prices:
             ref_price = round(statistics.median(chosen_prices))
@@ -246,7 +249,15 @@ def select_final(
         improved = False
         taken = {c.mls_number for c in chosen}
         candidates = [c for c in sold if c.mls_number not in taken]
+        max_chosen_rank = max((c.rank or idx for idx, c in enumerate(chosen, 1)), default=0)
         for cand in candidates:
+            if (
+                sel.max_swap_rank_gap is not None
+                and cand.rank is not None
+                and chosen
+                and cand.rank > max_chosen_rank + sel.max_swap_rank_gap
+            ):
+                continue
             if (
                 sel.max_swap_age_diff_years is not None
                 and subject.year_built is not None
@@ -255,7 +266,7 @@ def select_final(
             ):
                 continue
             if sel.max_swap_price_diff_pct is not None and ref_price is not None:
-                cand_price = cand.close_price.value or cand.list_price.value
+                cand_price = cand.adjusted_price.value or cand.close_price.value or cand.list_price.value
                 if cand_price is not None and not price_in_bracket(
                     cand_price, ref_price, sel.max_swap_price_diff_pct, True
                 ):

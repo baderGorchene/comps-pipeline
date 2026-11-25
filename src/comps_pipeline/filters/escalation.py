@@ -26,17 +26,19 @@ def filter_with_escalation(
 ) -> EscalationResult:
     steps = settings.escalation.steps
     minimum = settings.run.min_shortlist_size
+    sparse_target = max(settings.selection.sold_count + 3, min(10, minimum))
     c1_mode = subject.is_new_construction
     attempts: list[dict] = []
     for level in range(len(steps) + 1):
         filters = settings.filters_at(level)
         out = apply_hard_filters(comps, subject, settings.model_copy(update={"filters": filters}))
         sold = sum(c.pool == "sold" for c in out.comps)
+        listing_kept = len(out.comps) - sold
         attempt: dict = {
             "level": level,
             "overrides": dict(steps[level - 1]) if level else {},
             "sold_kept": sold,
-            "listing_kept": len(out.comps) - sold,
+            "listing_kept": listing_kept,
         }
 
         c1_satisfied = True
@@ -55,7 +57,12 @@ def filter_with_escalation(
                 c1_satisfied = False
 
         attempts.append(attempt)
-        if sold >= minimum and (not c1_mode or c1_satisfied):
+        sparse_satisfied = (
+            filters.max_distance_miles > 3.5
+            and sold >= sparse_target
+            and (settings.selection.listing_count == 0 or listing_kept >= settings.selection.listing_count)
+        )
+        if (sold >= minimum or sparse_satisfied) and (not c1_mode or c1_satisfied):
             break
 
     for i, step in enumerate(steps[:level], start=1):

@@ -5,11 +5,13 @@ import pytest
 
 from comps_pipeline.filters.hard_filters import (
     _core_isd,
+    adjusted_price_filter,
     age_filter,
     apply_hard_filters,
     distance_filter,
     gla_filter,
     gla_in_bracket,
+    gross_adjustment_filter,
     lot_filter,
     lot_in_bracket,
     price_filter,
@@ -269,5 +271,53 @@ def test_sub_type_and_story_emit_distinct_rule_names(subject, settings):
     assert not res.kept
     rules = {a.mls_number: a.rule for a in res.audit}
     assert rules == {"ONE": "story_count", "MOB": "property_sub_type"}
+
+
+def test_compute_adjustments_and_adjusted_price_gates(subject, settings):
+    from comps_pipeline.ranking.adjustments import compute_adjustments
+
+    subj = subject.model_copy(
+        update={
+            "living_area": 3000,
+            "lot_size_sqft": 20000,
+            "bedrooms": 4,
+            "baths_full": 3,
+            "baths_half": 0,
+            "pool": False,
+            "contract_price": 700_000,
+        }
+    )
+    # Larger comp with pool + concession should adjust downward; high-adjustment outlier excluded by gross_adjustment_filter
+    reasonable = make_comp(
+        "OK",
+        living_area=3300,
+        lot_size_sqft=20000,
+        bedrooms=4,
+        baths_full=3,
+        baths_half=0,
+        close_price=750_000,
+    ).model_copy(
+        update={
+            "pool": "sold",
+            "extras": {"Poolyn": "Yes", "Seller Concession Amount": "$5,000"},
+        }
+    )
+    huge_adj = make_comp(
+        "OUT",
+        living_area=2000,
+        lot_size_sqft=8000,
+        bedrooms=2,
+        baths_full=1,
+        baths_half=0,
+        close_price=350_000,
+    ).model_copy(update={"pool": "sold"})
+    adj_out = compute_adjustments([reasonable, huge_adj], subj, settings)
+    ok_c, bad_c = adj_out.comps
+    assert ok_c.net_adjustment.value < 0
+    assert ok_c.adjusted_price.value == 750_000 + ok_c.net_adjustment.value
+    assert ok_c.gross_adjustment_pct.value > 0
+    assert [c.mls_number for c in adjusted_price_filter([ok_c, bad_c], subj, settings).kept] == ["OK"]
+    assert [c.mls_number for c in gross_adjustment_filter([ok_c, bad_c], subj, settings).kept] == ["OK"]
+
 
 

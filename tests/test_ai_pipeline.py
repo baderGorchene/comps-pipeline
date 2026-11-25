@@ -6,9 +6,10 @@ from comps_pipeline import pipeline
 from comps_pipeline.ai.router import AIModelRouter
 from comps_pipeline.ingest.cleaner import clean
 from comps_pipeline.models import FlagReason
-from tests.conftest import SAMPLES
+from tests.conftest import ROOT
 
-CSV, SUBJECT = SAMPLES / "mls_sample.csv", SAMPLES / "subject.yaml"
+FIXTURES = ROOT / "tests" / "fixtures"
+CSV, SUBJECT = FIXTURES / "mls_sample.csv", FIXTURES / "synthetic_subject.yaml"
 
 
 def test_ai_router_owner_classification():

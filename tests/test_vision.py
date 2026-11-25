@@ -6,7 +6,9 @@ from concurrent.futures import ThreadPoolExecutor
 from comps_pipeline import pipeline
 from comps_pipeline.ai.vision import photo_urls, run_vision
 from comps_pipeline.models import FlagReason
-from tests.conftest import SAMPLES, make_comp
+from tests.conftest import ROOT, make_comp
+
+FIXTURES = ROOT / "tests" / "fixtures"
 
 
 class StubRouter:
@@ -85,7 +87,7 @@ def test_vision_scores_flags_and_reranks(subject, settings):
 
 def test_pipeline_vision_enabled_without_keys_is_harmless(settings):
     s = settings.model_copy(update={"vision": settings.vision.model_copy(update={"enabled": True})})
-    result = pipeline.run(SAMPLES / "mls_sample.csv", SAMPLES / "subject.yaml", s)
+    result = pipeline.run(FIXTURES / "mls_sample.csv", FIXTURES / "synthetic_subject.yaml", s)
     assert "vision" in result.manifest.stage_durations_s
     assert all(c.vision is None for c in result.shortlist)  # no network under pytest
     assert result.final.picks

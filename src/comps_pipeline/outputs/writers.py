@@ -18,6 +18,9 @@ SHORTLIST_COLUMNS = [
     "contract_date",
     "close_date",
     "list_price",
+    "adjusted_price",
+    "net_adjustment",
+    "gross_adjustment_pct",
     "living_area",
     "year_built",
     "condition_quality",
@@ -42,7 +45,13 @@ SHORTLIST_COLUMNS = [
     "deselection_reason",
     "public_remarks",
 ]
-DISPLAY_DECIMALS = {"distance_miles": 3, "gla_diff_pct": 2, "lot_diff_pct": 2, "lot_acres": 4}
+DISPLAY_DECIMALS = {
+    "distance_miles": 3,
+    "gla_diff_pct": 2,
+    "lot_diff_pct": 2,
+    "lot_acres": 4,
+    "gross_adjustment_pct": 1,
+}
 FLAG_COLUMNS = ["id", "mls_number", "field", "reason", "severity", "origin", "message", "evidence"]
 OUTPUT_FILES = (
     "shortlist.csv",

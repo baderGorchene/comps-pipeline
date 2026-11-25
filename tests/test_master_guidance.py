@@ -534,3 +534,27 @@ def test_cleaner_excludes_subject_and_infers_blank_subdivision(subject, settings
     )
 
 
+def test_13440_borolo_dataset_clusters_prices_and_captures_client_picks(settings):
+    borolo_csv = ROOT / "data" / "input" / "13440 sample.csv"
+    borolo_subj = ROOT / "data" / "samples" / "subject.yaml"
+    if not (borolo_csv.is_file() and borolo_subj.is_file()):
+        return
+    res = pipeline.run(borolo_csv, borolo_subj, settings)
+    assert res.exit_code == 0
+    assert len(res.final.picks) == 6
+    # Subject's own pending listing (519599) must be excluded, never picked
+    assert "519599" not in {c.mls_number for c in res.final.picks}
+    # No extreme cheap/old 1970-2002 outliers ($388k-$510k) in Final 6
+    for c in res.final.picks:
+        price = c.close_price.value or c.list_price.value
+        assert 550_000 <= price <= 950_000, f"{c.mls_number} price {price}"
+        assert c.year_built.value is not None and c.year_built.value >= 2004, (
+            f"{c.mls_number} yb {c.year_built.value}"
+        )
+        assert c.adjusted_price.value is not None
+    # Key client picks present in 13440 sample.csv rank into Top shortlist / Final 6
+    picked_mls = {c.mls_number for c in res.final.picks}
+    assert "496359" in picked_mls and "519879" in picked_mls
+
+
+

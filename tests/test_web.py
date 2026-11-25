@@ -14,8 +14,10 @@ from django.conf import settings as django_settings  # noqa: E402
 from django.test import Client, override_settings  # noqa: E402
 
 from comps_pipeline.config.loader import load_settings  # noqa: E402
-from tests.conftest import CONFIG  # noqa: E402
+from tests.conftest import CONFIG, ROOT  # noqa: E402
 from web.forms import ConfigForm  # noqa: E402
+
+FIXTURES = ROOT / "tests" / "fixtures"
 
 SUBJECT = {
     "address": "1708 Hidden Glen Dr, Round Rock, TX 78681",
@@ -42,6 +44,8 @@ def client(tmp_path):
     with override_settings(
         CONFIG_FILE=tmp_path / "settings.yaml",
         INPUT_SUBJECT=tmp_path / "none.yaml",
+        SAMPLE_CSV=FIXTURES / "mls_sample.csv",
+        SAMPLE_SUBJECT=FIXTURES / "synthetic_subject.yaml",
         ALLOWED_HOSTS=["testserver"],
     ):
         yield Client()
@@ -71,7 +75,7 @@ def test_form_page_loads_with_defaults(client):
 
     cfg_page = client.get("/config/").content.decode()
     assert 'value="25"' in cfg_page
-    assert "max_distance_miles = 4.0" in cfg_page  # escalation steps from settings.yaml
+    assert "max_distance_miles = 5.0" in cfg_page  # escalation steps from settings.yaml
 
 
 def test_run_from_form_then_results_history_download(client):
@@ -222,7 +226,7 @@ def test_find_more_comps_button_runs_second_round(client):
     cfg["second_round"]["remove_if_flagged"] = list(cfg["severity"])  # any flagged pick = unusable
     cfg["second_round"]["auto"] = False  # button mode
     path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
-    first = _post(client)
+    first = _post(client, subdivision="Brushy Crek Phase 2")
     page = client.get(first.url).content.decode()
     assert "Find more comps" in page
     run_id = first.url.rstrip("/").split("/")[-1]

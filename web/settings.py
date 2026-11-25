@@ -50,6 +50,14 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 # Paths used by the views (relative to the repo root, where run.bat starts the server).
 CONFIG_FILE = BASE_DIR / "config" / "settings.yaml"
-SAMPLE_CSV = BASE_DIR / "data" / "samples" / "mls_sample.csv"
+_INPUT_SAMPLE_CSV = BASE_DIR / "data" / "input" / "13440 sample.csv"
+_LEGACY_SAMPLE_CSV = BASE_DIR / "data" / "samples" / "mls_sample.csv"
+SAMPLE_CSV = (
+    _INPUT_SAMPLE_CSV
+    if _INPUT_SAMPLE_CSV.is_file()
+    else _LEGACY_SAMPLE_CSV
+    if _LEGACY_SAMPLE_CSV.is_file()
+    else BASE_DIR / "tests" / "fixtures" / "mls_sample.csv"
+)
 SAMPLE_SUBJECT = BASE_DIR / "data" / "samples" / "subject.yaml"
 INPUT_SUBJECT = BASE_DIR / "data" / "input" / "subject.yaml"

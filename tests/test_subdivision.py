@@ -84,3 +84,11 @@ def test_match_all_flags_uncertain(subject, settings):
     (flag,) = out.flags
     assert flag.reason is FlagReason.SUBDIVISION_UNCERTAIN and flag.mls_number == "1"
     assert "PHASE 3 vs 2" in flag.message
+
+
+def test_parent_subdivision_phase_matching(settings):
+    m = match_subdivision("McColl Estates Ph 1", "McColl Estates", settings)
+    assert m.tier == 1 and m.score >= 95.0
+    conflict = match_subdivision("McColl Estates Ph 1", "McColl Estates Ph 2", settings)
+    assert conflict.tier >= 2 and conflict.number_conflict
+

@@ -25,6 +25,7 @@ from comps_pipeline.models import (
 
 STAGE = "subdivision"
 _LEGAL_NOISE = re.compile(r"\b(?:LOT|LT|BLK|BLOCK)\s+[0-9A-Z-]+\b")
+_SUB_PART_SUFFIX = re.compile(r"\b(?:PHASE|SECTION|UNIT)\s+[0-9A-Z]+\b")
 
 
 def strip_legal_lot_block(legal_text: str) -> str:
@@ -63,6 +64,14 @@ def match_subdivision(
             return Match(nc, 0, 100.0, conflict)
         if index.get(nc, nc) == index.get(ns, ns):
             return Match(nc, 1, 100.0, conflict)
+        nc_base = re.sub(r"\s+", " ", _SUB_PART_SUFFIX.sub(" ", nc)).strip()
+        ns_base = re.sub(r"\s+", " ", _SUB_PART_SUFFIX.sub(" ", ns)).strip()
+        if (
+            nc_base
+            and ns_base
+            and (nc_base == ns_base or index.get(nc_base, nc_base) == index.get(ns_base, ns_base))
+        ):
+            return Match(nc, 1, 95.0, conflict)
     score = round(fuzz.token_sort_ratio(nc, ns), 2)
     tier = 2 if score >= settings.filters.subdivision_min_score else 3
     return Match(nc, tier, score, conflict)

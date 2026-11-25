@@ -45,6 +45,8 @@ RULE_LABELS = {
     "gla_bracket": "Living area outside ±% bracket",
     "lot_bracket": "Lot size outside ±% bracket",
     "price_bracket": "Price outside ±% bracket",
+    "adjusted_price_bracket": "Adjusted price outside ±% bracket",
+    "gross_adjustment": "Gross adjustment % exceeds maximum limit",
     "age_bracket": "Year built outside max age difference",
     "sale_date_window": "Sold before lookback window cutoff",
     "subdivision_match": "Subdivision did not match subject",
@@ -512,6 +514,21 @@ def _grid(final: list[dict], subject: dict, bracket: list[str], gaps: set[str]) 
         )
     facts = [
         ("Price", "", [_money(_v(c, "close_price") or _v(c, "list_price")) for c in final]),
+        (
+            "Adjusted price",
+            _money(subject.get("contract_price") or subject.get("estimated_value")),
+            [_money(_v(c, "adjusted_price")) for c in final],
+        ),
+        (
+            "Gross adj. %",
+            "",
+            [
+                f"{_v(c, 'gross_adjustment_pct'):.1f}%"
+                if _v(c, "gross_adjustment_pct") is not None
+                else "—"
+                for c in final
+            ],
+        ),
         ("Sold / listed", "", [_v(c, "close_date") or "Listed" for c in final]),
         ("Distance", "", [_miles(_v(c, "distance_miles")) for c in final]),
         ("Subdivision", subject.get("subdivision", ""), [_v(c, "subdivision_raw") for c in final]),
@@ -560,6 +577,9 @@ def _comp_row(c: dict, picked: set[str], flags_by_mls: dict[str, list[dict[str, 
     baths = _comp_attr(c, "baths")
     mls = c["mls_number"]
     comp_flags = flags_by_mls.get(mls, [])
+    adj_price = _v(c, "adjusted_price")
+    net_adj = _v(c, "net_adjustment")
+    gross_adj = _v(c, "gross_adjustment_pct")
     return {
         "rank": c["rank"],
         "pool": c.get("pool", ""),
@@ -567,6 +587,10 @@ def _comp_row(c: dict, picked: set[str], flags_by_mls: dict[str, list[dict[str, 
         "address": _extra(c, "Address", "Street Address", "Property Address") or "—",
         "status": _v(c, "status") or "",
         "price": _money(_v(c, "close_price") or _v(c, "list_price")),
+        "adjusted_price": _money(adj_price),
+        "net_adj": f"{net_adj:+,}" if net_adj is not None else "",
+        "gross_adj_pct": f"{gross_adj:.1f}%" if gross_adj is not None else "",
+        "adjustment_summary": c.get("adjustment_summary") or "",
         "contract_date": (
             _extra(c, "Pending Date", "Contract Date", "PendingDate", "ContractDate") or "—"
         ),
@@ -605,6 +629,8 @@ STEP_LABELS = {
     "gla_bracket_pct": "living area ±{}%",
     "lot_bracket_pct": "lot ±{}%",
     "price_bracket_pct": "price ±{}%",
+    "adjusted_price_bracket_pct": "adjusted price ±{}%",
+    "max_gross_adjustment_pct": "gross adj ≤{}%",
     "max_age_diff_years": "age ±{} yrs",
     "sale_date_max_months": "sold within {} months",
 }
@@ -617,6 +643,8 @@ def _describe_step(overrides: dict[str, Any]) -> str:
             parts.append("any story count")
         elif k == "require_school_district_match" and v is False:
             parts.append("any school district")
+        elif k == "require_water_sewer_match" and v is False:
+            parts.append("any water/sewer")
         else:
             parts.append(STEP_LABELS.get(k, k + " {}").format(v))
     return ", ".join(parts)

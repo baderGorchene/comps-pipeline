@@ -1,14 +1,38 @@
-# Subject property for the synthetic sample (scripts/generate_synthetic.py).
-address: "1708 Hidden Glen Dr, Round Rock, TX 78681"
-latitude: 30.508300
-longitude: -97.678900
-living_area: 2000
-year_built: 2005
-lot_size_sqft: 7800
-subdivision: "Brushy Creek Phase 2"
-foundation_type: "Slab"
+# Subject property: 13440 Borolo Dr, Edinburg, TX 78541
+address: "13440 Borolo Dr"
+city_state_zip: "Edinburg, TX 78541"
+subdivision: ""
+effective_date: 2026-11-22
+latitude: 26.328178
+longitude: -98.224380
+
+property_type: "Residential"
+property_sub_type: "House"
+living_area: 3406
+lot_size_sqft: 21963
+year_built: 2019
 bedrooms: 3
 baths_full: 2
 baths_half: 1
-effective_date: 2026-10-01
-extras: {}
+stories: 2.0
+condition: "C2"
+quality: "Q2"
+
+pool: false
+has_adu: false
+garage_spaces: 2
+hvac: "FAU/CAC"
+energy_features: "Typical"
+exterior_features: "CPorch/CPatio"
+
+transaction_type: "purchase"
+contract_price: 742000
+construction_status: "existing"
+extras:
+  neighborhood: "N Edinburg"
+  design_style: "DT2;Spanish"
+  location: "B;Superior;"
+  view: "N;Res;"
+  concessions: 0
+  sale_date: "2026-11-16"
+  data_source: "HCAD"

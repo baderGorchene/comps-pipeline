@@ -119,7 +119,7 @@
     <div class="table-scroll">
       <table class="plain">
         <thead>
-          <tr><th class="num">#</th><th>Property</th><th class="num">Price</th><th class="num">Sq ft</th>
+          <tr><th class="num">#</th><th>Property</th><th class="num">Price</th><th class="num">Adj. price</th><th class="num">Sq ft</th>
             <th class="num">Built</th><th class="num">Bed / Bath</th><th class="num">Distance</th><th>Why it was picked</th></tr>
         </thead>
         <tbody>
@@ -133,6 +133,7 @@
               {% include "flag_chips.html" with flags=r.flags %}
             </td>
             <td class="num">{{ r.price }}</td>
+            <td class="num">{{ r.adjusted_price }}{% if r.gross_adj_pct %}<small>Grs {{ r.gross_adj_pct }}</small>{% endif %}</td>
             <td class="num">{{ r.gla }}</td>
             <td class="num">{{ r.year }}</td>
             <td class="num">{{ r.beds }} / {{ r.baths }}</td>
@@ -232,13 +233,14 @@
     {% if analyzed_not_used %}
     <div class="table-scroll">
       <table class="plain">
-        <thead><tr><th class="num">Rank</th><th>Property</th><th class="num">Price</th><th class="num">Sq ft</th><th class="num">Distance</th><th>Why not used</th></tr></thead>
+        <thead><tr><th class="num">Rank</th><th>Property</th><th class="num">Price</th><th class="num">Adj. price</th><th class="num">Sq ft</th><th class="num">Distance</th><th>Why not used</th></tr></thead>
         <tbody>
           {% for r in analyzed_not_used %}
           <tr>
             <td class="num">{{ r.rank }}<small>{{ r.pool }}</small></td>
             <td><strong>{{ r.address }}</strong>{% if r.round2 and not r.outside_rules %} <span class="tag tag-new">New</span>{% endif %}<small>MLS {{ r.mls }} · {{ r.status }}</small>{% include "flag_chips.html" with flags=r.flags %}</td>
             <td class="num">{{ r.price }}</td>
+            <td class="num">{{ r.adjusted_price }}{% if r.gross_adj_pct %}<small>Grs {{ r.gross_adj_pct }}</small>{% endif %}</td>
             <td class="num">{{ r.gla }}</td>
             <td class="num">{{ r.miles }}</td>
             <td class="small-text">{{ r.deselection_reason }}

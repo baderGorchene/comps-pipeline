@@ -1,7 +1,9 @@
 import pytest
 
 from comps_pipeline.ingest.mapper import InputError, map_rows, read_csv, suggest_mapping
-from tests.conftest import SAMPLES
+from tests.conftest import ROOT
+
+FIXTURES = ROOT / "tests" / "fixtures"
 
 MAPPING = {
     "mls_number": ["MLS #"],
@@ -52,7 +54,7 @@ def test_missing_required_column_lists_available_headers():
 
 
 def test_sample_maps_with_repo_mapping(settings):
-    rows = map_rows(read_csv(SAMPLES / "mls_sample.csv"), settings.column_mapping)
+    rows = map_rows(read_csv(FIXTURES / "mls_sample.csv"), settings.column_mapping)
     assert len(rows) == 300
     assert set(rows[0]["extras"]) == {"Address", "Pool"}
 

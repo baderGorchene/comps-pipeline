@@ -59,6 +59,8 @@ class FilterSettings(Strict):
     price_bracket_pct: int | None = Field(default=None, ge=0, le=100)
     price_bracket_inclusive: bool = True
     missing_price: Literal["exclude", "keep_and_flag"] = "exclude"
+    adjusted_price_bracket_pct: int | None = Field(default=None, ge=0, le=100)
+    max_gross_adjustment_pct: float | None = Field(default=None, gt=0, le=200)
     max_age_diff_years: int | None = Field(default=None, ge=0)
     missing_age: Literal["exclude", "keep_and_flag"] = "keep_and_flag"
     require_subdivision_match: bool
@@ -108,6 +110,7 @@ class ToleranceBands(Strict):
 class RankingSettings(Strict):
     hierarchy: list[str]
     tolerance_bands: ToleranceBands
+    holistic_defensibility: bool = True
 
     @field_validator("hierarchy")
     @classmethod
@@ -115,6 +118,30 @@ class RankingSettings(Strict):
         if sorted(v) != sorted(RANKING_KEYS):
             raise ValueError(f"hierarchy must be a permutation of {list(RANKING_KEYS)}, got {v}")
         return v
+
+
+class ValuationSettings(Strict):
+    """Deterministic UAD 3.6 component adjustments for closing vs. adjusted price convergence."""
+
+    enabled: bool = True
+    gla_adj_factor: float = Field(default=0.38, ge=0, le=1)
+    min_gla_rate: int = Field(default=45, ge=0)
+    max_gla_rate: int = Field(default=120, ge=0)
+    gla_deadband_sqft: int = Field(default=50, ge=0)
+    lot_deadband_pct: float = Field(default=10.0, ge=0, le=100)
+    max_lot_adj_pct: float = Field(default=15.0, ge=0, le=100)
+    bedroom_adj_pct: float = Field(default=0.008, ge=0, le=0.2)
+    min_bedroom_adj: int = Field(default=2500, ge=0)
+    full_bath_adj_pct: float = Field(default=0.012, ge=0, le=0.2)
+    min_full_bath_adj: int = Field(default=5000, ge=0)
+    garage_adj_pct: float = Field(default=0.015, ge=0, le=0.2)
+    min_garage_adj: int = Field(default=4000, ge=0)
+    pool_adj_pct: float = Field(default=0.033, ge=0, le=0.3)
+    min_pool_adj: int = Field(default=12000, ge=0)
+    max_pool_adj: int = Field(default=35000, ge=0)
+    adu_adj_pct: float = Field(default=0.047, ge=0, le=0.3)
+    min_adu_adj: int = Field(default=15000, ge=0)
+    max_adu_adj: int = Field(default=45000, ge=0)
 
 
 class SelectionSettings(Strict):
@@ -126,8 +153,9 @@ class SelectionSettings(Strict):
     # false = the rule as written: one comp strictly above AND one strictly below.
     equal_counts_as_bracketed: bool
     # Guardrails so bracketing swaps never pull in extreme price or age outliers.
-    max_swap_price_diff_pct: int | None = Field(default=25, ge=0, le=100)
+    max_swap_price_diff_pct: int | None = Field(default=18, ge=0, le=100)
     max_swap_age_diff_years: int | None = Field(default=15, ge=0)
+    max_swap_rank_gap: int | None = Field(default=8, ge=1)
 
     @field_validator("bracket_attributes")
     @classmethod
@@ -174,6 +202,7 @@ class Settings(Strict):
     escalation: EscalationSettings
     matching: MatchingSettings
     ranking: RankingSettings
+    valuation: ValuationSettings = Field(default_factory=ValuationSettings)
     selection: SelectionSettings
     vision: VisionSettings = Field(default_factory=VisionSettings)
     second_round: SecondRoundSettings = Field(default_factory=SecondRoundSettings)

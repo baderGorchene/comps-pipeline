@@ -15,6 +15,7 @@ from comps_pipeline.config.schema import Settings
 from comps_pipeline.ingest.cleaner import months_before
 from comps_pipeline.models import AuditEntry, Comp, Decision, Excluded, StageOutput, Subject
 from comps_pipeline.models.comp import STANDARD_FIELDS
+from comps_pipeline.ranking.adjustments import compute_adjustments
 
 STAGE = "hard_filters"
 
@@ -182,6 +183,47 @@ def price_filter(comps: list[Comp], subject: Subject, settings: Settings) -> Fil
                 f"of subject benchmark ${subj_price:,}"
             )
             res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg, price=price))
+    return res
+
+
+def adjusted_price_filter(comps: list[Comp], subject: Subject, settings: Settings) -> FilterResult:
+    """Enforce bracket on component-adjusted price around subject benchmark (if computed)."""
+    rule, f = "adjusted_price_bracket", settings.filters
+    subj_price = subject.benchmark_price
+    if subj_price is None or f.adjusted_price_bracket_pct is None:
+        return FilterResult(kept=list(comps))
+    res = FilterResult()
+    op = "inclusive" if f.price_bracket_inclusive else "exclusive"
+    for c in comps:
+        adj = c.adjusted_price.value
+        if adj is None:
+            res.kept.append(c)
+        elif price_in_bracket(
+            adj, subj_price, f.adjusted_price_bracket_pct, f.price_bracket_inclusive
+        ):
+            res.kept.append(c)
+        else:
+            msg = (
+                f"adjusted price ${adj:,} outside +/-{f.adjusted_price_bracket_pct}% ({op}) "
+                f"of subject benchmark ${subj_price:,}"
+            )
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg, adjusted_price=adj))
+    return res
+
+
+def gross_adjustment_filter(comps: list[Comp], subject: Subject, settings: Settings) -> FilterResult:
+    """Exclude comps requiring excessive total line-item adjustments (FNMA/UAD defensibility)."""
+    rule, limit = "gross_adjustment", settings.filters.max_gross_adjustment_pct
+    if limit is None:
+        return FilterResult(kept=list(comps))
+    res = FilterResult()
+    for c in comps:
+        grs = c.gross_adjustment_pct.value
+        if grs is None or grs <= limit:
+            res.kept.append(c)
+        else:
+            msg = f"gross adjustment {grs:.1f}% exceeds max {limit:.1f}%"
+            res.audit.append(_entry(c, Decision.EXCLUDED, rule, msg, gross_adjustment_pct=grs))
     return res
 
 
@@ -504,6 +546,8 @@ FILTERS: tuple[Callable[[list[Comp], Subject, Settings], FilterResult], ...] = (
     lot_filter,
     distance_filter,
     price_filter,
+    adjusted_price_filter,
+    gross_adjustment_filter,
     age_filter,
     subdivision_filter,
     required_features_filter,
@@ -523,6 +567,22 @@ def _comp_price(c: Comp) -> int | None:
 
 def apply_hard_filters(comps: list[Comp], subject: Subject, settings: Settings) -> StageOutput:
     out = StageOutput()
+    priced_sold_count = sum(
+        c.pool == "sold" and c.close_price.value is not None and c.living_area.value is not None
+        for c in comps
+    )
+    if (
+        settings.valuation.enabled
+        and (subject.benchmark_price is not None or priced_sold_count >= 5)
+        and any(
+            _comp_price(c) is not None
+            and c.living_area.value is not None
+            and c.adjusted_price.value is None
+            for c in comps
+        )
+    ):
+        comps = compute_adjustments(comps, subject, settings).comps
+
     failures: dict[str, list[str]] = {}
     raw_audit: list[AuditEntry] = []
     for fn in FILTERS:
@@ -532,9 +592,11 @@ def apply_hard_filters(comps: list[Comp], subject: Subject, settings: Settings) 
             if a.decision == Decision.EXCLUDED and a.mls_number is not None:
                 failures.setdefault(a.mls_number, []).append(f"{a.rule}: {a.detail['message']}")
 
-    # Peer-anchored price outlier gate for Refinances when no benchmark_price is provided.
+    # Peer-anchored price & adjusted-price outlier gate for Refinances when no benchmark_price is provided.
     f = settings.filters
-    if subject.benchmark_price is None and f.price_bracket_pct is not None:
+    if subject.benchmark_price is None and (
+        f.price_bracket_pct is not None or f.adjusted_price_bracket_pct is not None
+    ):
         peers = [
             c
             for c in comps
@@ -552,17 +614,19 @@ def apply_hard_filters(comps: list[Comp], subject: Subject, settings: Settings) 
                 for c in comps:
                     price = _comp_price(c)
                     if price is None:
-                        if f.missing_price == "exclude":
-                            entry = _entry(c, Decision.EXCLUDED, "price_bracket", "price unknown")
-                            raw_audit.append(entry)
-                            failures.setdefault(c.mls_number, []).append(
-                                f"{entry.rule}: {entry.detail['message']}"
-                            )
-                        else:
-                            raw_audit.append(
-                                _entry(c, Decision.FLAGGED, "price_bracket", "price unknown, kept")
-                            )
-                    elif not price_in_bracket(
+                        if f.price_bracket_pct is not None:
+                            if f.missing_price == "exclude":
+                                entry = _entry(c, Decision.EXCLUDED, "price_bracket", "price unknown")
+                                raw_audit.append(entry)
+                                failures.setdefault(c.mls_number, []).append(
+                                    f"{entry.rule}: {entry.detail['message']}"
+                                )
+                            else:
+                                raw_audit.append(
+                                    _entry(c, Decision.FLAGGED, "price_bracket", "price unknown, kept")
+                                )
+                        continue
+                    if f.price_bracket_pct is not None and not price_in_bracket(
                         price, implied, f.price_bracket_pct, f.price_bracket_inclusive
                     ):
                         msg = (
@@ -570,6 +634,25 @@ def apply_hard_filters(comps: list[Comp], subject: Subject, settings: Settings) 
                             f"of peer-implied market value ${implied:,}"
                         )
                         entry = _entry(c, Decision.EXCLUDED, "price_bracket", msg, price=price)
+                        raw_audit.append(entry)
+                        failures.setdefault(c.mls_number, []).append(
+                            f"{entry.rule}: {entry.detail['message']}"
+                        )
+                    adj = c.adjusted_price.value
+                    if (
+                        adj is not None
+                        and f.adjusted_price_bracket_pct is not None
+                        and not price_in_bracket(
+                            adj, implied, f.adjusted_price_bracket_pct, f.price_bracket_inclusive
+                        )
+                    ):
+                        msg = (
+                            f"adjusted price ${adj:,} outside +/-{f.adjusted_price_bracket_pct}% "
+                            f"({op}) of peer-implied market value ${implied:,}"
+                        )
+                        entry = _entry(
+                            c, Decision.EXCLUDED, "adjusted_price_bracket", msg, adjusted_price=adj
+                        )
                         raw_audit.append(entry)
                         failures.setdefault(c.mls_number, []).append(
                             f"{entry.rule}: {entry.detail['message']}"

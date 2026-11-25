@@ -34,6 +34,7 @@ from comps_pipeline.models import (
     Subject,
 )
 from comps_pipeline.outputs.writers import write_manifest, write_outputs
+from comps_pipeline.ranking.adjustments import compute_adjustments
 from comps_pipeline.ranking.ranker import rank, subject_gaps
 from comps_pipeline.selection.final import FinalSelection, select_final
 from comps_pipeline.selection.second_round import find_more as second_round
@@ -162,6 +163,8 @@ def run(
         comps = absorb(compute_distances(comps, subject, settings))
     with timer.stage("subdivision"):
         comps = absorb(match_all(comps, subject, settings))
+    with timer.stage("adjustments"):
+        comps = absorb(compute_adjustments(comps, subject, settings))
     with timer.stage("hard_filters"):
         filter_input = comps
         escalation = filter_with_escalation(comps, subject, settings)
@@ -169,15 +172,25 @@ def run(
     with timer.stage("rank"):
         flags.extend(subject_gaps(subject, settings))
         run_cfg = settings.run
+        effective_settings = settings.model_copy(
+            update={"filters": settings.filters_at(escalation.level)}
+        )
+        sold_members = [c for c in comps if c.pool == "sold"]
+        sparse_target = max(
+            settings.selection.sold_count + 3, min(10, run_cfg.min_shortlist_size)
+        )
+        sold_min = run_cfg.min_shortlist_size
+        if (
+            effective_settings.filters.max_distance_miles > 3.5
+            and len(sold_members) >= sparse_target
+        ):
+            sold_min = min(run_cfg.min_shortlist_size, len(sold_members))
         pools = {
-            "sold": (run_cfg.shortlist_size, run_cfg.min_shortlist_size),
+            "sold": (run_cfg.shortlist_size, sold_min),
             "listing": (run_cfg.listing_shortlist_size, 0),
         }
         shortlists: dict[str, list[Comp]] = {}
         ranked_all: list[Comp] = []
-        effective_settings = settings.model_copy(
-            update={"filters": settings.filters_at(escalation.level)}
-        )
         for pool, (size, minimum) in pools.items():
             members = [c for c in comps if c.pool == pool]
             ranked = rank(

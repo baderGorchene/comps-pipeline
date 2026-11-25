@@ -79,6 +79,10 @@ class Comp(BaseModel):
     lot_diff_pct: Cell[float] = Field(default_factory=Cell)
     subdivision_score: Cell[float] = Field(default_factory=Cell)
     subdivision_tier: Cell[int] = Field(default_factory=Cell)
+    adjusted_price: Cell[int] = Field(default_factory=Cell)
+    net_adjustment: Cell[int] = Field(default_factory=Cell)
+    gross_adjustment_pct: Cell[float] = Field(default_factory=Cell)
+    adjustment_summary: str | None = None
     rank: int | None = None  # rank within its pool
     sort_key: list[Any] | None = None  # stored for audit
     remarks_signals: dict[str, Any] = Field(default_factory=dict)  # Step 3 NLP & heuristic findings

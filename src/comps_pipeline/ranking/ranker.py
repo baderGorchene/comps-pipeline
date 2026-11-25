@@ -25,6 +25,7 @@ from comps_pipeline.models import (
     Source,
     Subject,
 )
+from comps_pipeline.ranking.adjustments import resolve_benchmark_price
 
 STAGE = "rank"
 MISSING = (1, 0)  # sorts after every (0, value)
@@ -224,10 +225,78 @@ def _isd_priority(c: Comp, subject: Subject) -> int:
     return 0 if (norm_s and norm_c and norm_s == norm_c) else 1
 
 
-def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
+def _garage_priority(c: Comp, subject: Subject) -> int:
+    """Soft tie-breaker: prefer matching garage bay count when subject specifies it."""
+    if subject.garage_spaces is None:
+        return 0
+    raw = c.extra_str("Garage Spaces", "Garage", "GarageSpaces", "# Garage Spaces")
+    if not raw:
+        return 1
+    try:
+        cg = int(float(raw.split()[0]))
+    except (ValueError, IndexError):
+        return 1
+    return 0 if cg == subject.garage_spaces else 1
+
+
+def _holistic_bucket(
+    c: Comp, subject: Subject, settings: Settings, bench: int | None
+) -> tuple[int, int]:
+    """Appraiser trade-off score weighing distance, recency, GLA, lot, age, gross adj%, and price alignment."""
+    if not settings.ranking.holistic_defensibility or bench is None or c.adjusted_price.value is None:
+        return (0, 0)
+    raw_price = (
+        c.close_price.value
+        if (c.pool == "sold" and c.close_price.value is not None)
+        else (c.close_price.value or c.list_price.value)
+    )
+    if raw_price is None or bench <= 0:
+        return (0, 0)
+    tier = c.subdivision_tier.value
+    sub_bonus = -22.0 if tier in (0, 1) else (-10.0 if tier == 2 else 0.0)
+    dist = c.distance_miles.value if c.distance_miles.value is not None else 5.0
+    months_ago = (
+        max(0.0, (subject.effective_date - c.close_date.value).days / 30.4375)
+        if (c.pool == "sold" and c.close_date.value is not None)
+        else 0.0
+    )
+    gla_pct = abs(c.gla_diff_pct.value) if c.gla_diff_pct.value is not None else 0.0
+    lot_pct = abs(c.lot_diff_pct.value) if c.lot_diff_pct.value is not None else 25.0
+    lot_weight = 0.55 if (subject.lot_size_sqft or 0) >= 15000 else 0.20
+    age_diff = abs(c.age_diff_years.value) if c.age_diff_years.value is not None else 5
+    gross_pct = c.gross_adjustment_pct.value if c.gross_adjustment_pct.value is not None else 0.0
+    adj_dev_pct = abs(c.adjusted_price.value - bench) / bench * 100
+    raw_dev_pct = abs(raw_price - bench) / bench * 100
+    pending_bonus = -6.0 if (c.pool == "listing" and _listing_status_priority(c) == 0) else 0.0
+    score = (
+        sub_bonus
+        + pending_bonus
+        + dist * 2.8
+        + months_ago * 0.45
+        + gla_pct * 0.65
+        + lot_pct * lot_weight
+        + age_diff * 0.75
+        + gross_pct * 0.45
+        + adj_dev_pct * 0.95
+        + raw_dev_pct * 0.35
+        + 2.5 * _story_priority(c, subject)
+        + 2.0 * _isd_priority(c, subject)
+        + 3.0 * _garage_priority(c, subject)
+    )
+    return (0, math.floor(score / 2.0))
+
+
+def sort_key(
+    c: Comp, subject: Subject, settings: Settings, bench: int | None = None
+) -> tuple[Any, ...]:
     bands = settings.ranking.tolerance_bands
     tier = c.subdivision_tier.value
     distance = c.distance_miles.value
+    holistic_active = bool(
+        settings.ranking.holistic_defensibility
+        and bench is not None
+        and c.adjusted_price.value is not None
+    )
     buckets = {
         "subdivision": MISSING if tier is None else (0, tier),
         "distance": _bucket(
@@ -240,14 +309,16 @@ def sort_key(c: Comp, subject: Subject, settings: Settings) -> tuple[Any, ...]:
         "baths": _bucket(_diff(c.total_baths(), subject.total_baths()), bands.baths_count),
     }
     return (
-        _listing_status_priority(c),
+        0 if holistic_active else _listing_status_priority(c),
         _financing_priority(c),
+        _holistic_bucket(c, subject, settings, bench),
         *(buckets[k] for k in settings.ranking.hierarchy),
         _contract_price_bucket(c, subject),
         _pool_priority(c, subject),
         _adu_priority(c, subject),
         _story_priority(c, subject),
         _isd_priority(c, subject),
+        _garage_priority(c, subject),
         _raw(distance),
         _raw(c.gla_diff_pct.value),
         c.mls_number,
@@ -389,7 +460,8 @@ def rank(
     """Rank one pool; keep the top `size`; flag when fewer than `minimum` remain."""
     out = RankOutput()
     with_metrics, out.flags = compute_metrics(comps, subject, settings)
-    keyed = [(sort_key(c, subject, settings), c) for c in with_metrics]
+    bench = resolve_benchmark_price(with_metrics, subject)
+    keyed = [(sort_key(c, subject, settings, bench), c) for c in with_metrics]
     keyed.sort(key=lambda kc: kc[0])  # stable sort; mls_number makes every key unique anyway
     base_comp: Comp | None = None
     cutoff_reached = False

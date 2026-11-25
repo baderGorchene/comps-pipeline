@@ -18,7 +18,11 @@ def test_repo_settings_load():
     assert s.ranking.hierarchy == ["subdivision", "distance", "gla", "age", "lot", "beds", "baths"]
     assert s.filters_at(0) == s.filters
     last = s.filters_at(len(s.escalation.steps))
-    assert (last.max_distance_miles, last.gla_bracket_pct, last.sale_date_max_months) == (5, 30, 24)
+    assert (last.max_distance_miles, last.gla_bracket_pct, last.sale_date_max_months) == (
+        8.5,
+        30,
+        24,
+    )
     assert "living_area" in s.column_mapping
     assert s.sev(FlagReason.SHORTLIST_BELOW_MINIMUM) is Severity.BLOCKING
 

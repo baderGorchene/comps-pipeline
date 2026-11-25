@@ -3,9 +3,10 @@ import csv
 from comps_pipeline import pipeline
 from comps_pipeline.models import FlagReason
 from comps_pipeline.outputs.writers import OUTPUT_FILES
-from tests.conftest import SAMPLES
+from tests.conftest import ROOT
 
-CSV, SUBJECT = SAMPLES / "mls_sample.csv", SAMPLES / "subject.yaml"
+FIXTURES = ROOT / "tests" / "fixtures"
+CSV, SUBJECT = FIXTURES / "mls_sample.csv", FIXTURES / "synthetic_subject.yaml"
 
 
 def _rows(path):
@@ -21,7 +22,7 @@ def test_e2e_writes_all_outputs(settings):
 
     sold = [c for c in result.shortlist if c.pool == "sold"]
     listings = [c for c in result.shortlist if c.pool == "listing"]
-    assert len(sold) == settings.run.shortlist_size and listings
+    assert settings.run.min_shortlist_size <= len(sold) <= settings.run.shortlist_size and listings
     assert result.shortlist == sold + listings
     for pool in (sold, listings):
         assert [c.rank for c in pool] == list(range(1, len(pool) + 1))

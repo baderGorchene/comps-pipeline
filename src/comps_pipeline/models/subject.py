@@ -77,7 +77,14 @@ class Subject(BaseModel):
             return self.contract_price
         if self.estimated_value is not None:
             return self.estimated_value
-        for k in ("estimated_value", "appraised_value", "benchmark_value", "list_price", "target_price"):
+        for k in (
+            "estimated_value",
+            "suggested_value",
+            "appraised_value",
+            "benchmark_value",
+            "list_price",
+            "target_price",
+        ):
             val = self.extras.get(k)
             if val is not None:
                 try:
